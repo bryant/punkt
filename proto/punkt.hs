@@ -3,13 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-import qualified Text.Parsec as P
-import Data.Char (isSpace)
-import qualified Data.List as List
 import Data.Maybe (catMaybes)
-import Control.Applicative (Applicative, pure, (<$>), (<*>))
-import Control.Monad (ap, liftM)
-import Control.Monad.Trans (MonadTrans, lift)
 import qualified Text.Regex.PCRE as Regex
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text (Text)
@@ -19,72 +13,6 @@ import Data.ByteString (ByteString)
 import Data.Bits ((.|.))
 import Data.Either (either)
 import Data.Array ((!))
-
-many_n n p
-    | n <= 0 = return []
-    | otherwise = (++) <$> P.count n p <*> P.many p
-
-many1_till p end = (:) <$> p <*> P.manyTill p end
-
-sepby_n 0 p sep = P.sepBy p sep
-sepby_n n p sep = do
-    xs <- (:) <$> p <*> P.count n (sep >> p)
-    xss <- P.many $ sep >> p
-    return $ xs ++ xss
-
-try_choices = P.choice . map P.try
-look_from = P.lookAhead . try_choices
-
-multi_char_punct = try_choices [hyphen, ellipsis, expando_ellipsis]
-    where
-    hyphen = many_n 2 $ P.char '-'
-    ellipsis = many_n 2 $ P.char '.'
-    expando_ellipsis = P.char '.' `sepby2` P.space
-    sepby2 = sepby_n 2
-
-nonspace = P.satisfy (not . isSpace)
-comma = P.char ','
-
-find_all p = fmap catMaybes $ P.many p_or_not
-    where p_or_not = fmap Just (P.try p) P.<|> (P.anyChar >> return Nothing)
-
-word_tokenizer = find_all words
-    where
-    words = try_choices [multi_char_punct, word, fmap (:[]) nonspace]
-    word = P.lookAhead word_starter >> nonspace `many1_till` a_wordend
-    a_wordend = look_from $ (comma >> look_from wordend') : wordend'
-    wordend' = [P.eof, P.space >> return (), nonword_char >> return (),
-        multi_char_punct >> return ()]
-    word_starter = P.noneOf "\"`:;&#*@-,(){}[]"
-    nonword_char = P.oneOf "?!\"';*:@({[]})"
-
-find_end_ctx :: String -> [String]
-find_end_ctx xs = map glue $ filter possible_ender pairs
-    where
-    pairs = zipWith (,) ws $ drop 1 ws where ws = words xs
-    possible_ender (w, _) = last (strip_nonword w) `elem` "?!."
-    strip_nonword = List.dropWhileEnd (`elem` "?!\"';*:@({[]})")
-    glue (word, next) = unwords [word, next]
-
--- tokens_in :: String -> [Token]
-tokens_in xs = (P.runParser word_tokenizer () "" xs)
-
-newtype EitherT a m b = EitherT { runEitherT :: m (Either a b) }
-    deriving Functor
-
-instance MonadTrans (EitherT a) where
-    lift = EitherT . liftM return
-
-instance Monad m => Monad (EitherT a m) where
-    return = EitherT . return . return
-    maeither >>= f = EitherT $ runEitherT maeither >>= mb f
-        where
-        mb g (Right stuff) = runEitherT $ g stuff
-        mb _ (Left x) = return $ Left x
-
-instance (Monad f, Applicative f) => Applicative (EitherT a f) where
-    pure = return
-    (<*>) = ap
 
 (~~>) :: (b -> [Either a b]) -> (b -> [Either a b]) -> b -> [Either a b]
 (f0 ~~> f1) input = f0 input >>= either (\v -> [Left v]) f1
