@@ -129,3 +129,11 @@ compile_re = Regex.makeRegexOpts opts execopts
     where
     opts = Regex.compUTF8 .|. Regex.compDotAll
     execopts = Regex.execBlank
+
+classify_periods toks = map maybe_abbrev toks
+    where
+    maybe_abbrev t@(Token {entity=(Word w)})
+        | Text.last w == '.' = case prob_abbrev (Text.init w) toks >= 0.3 of
+            False -> t { sentend = True }
+            True -> t { abbrev = True }
+    maybe_abbrev t = t
