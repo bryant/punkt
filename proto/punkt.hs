@@ -110,7 +110,7 @@ process text = do
     -- fmap decode_utf8 ((mark_multi ~~> sep_words) (text, 0))
     b <- (mark_multi ~~> sep_words) (encodeUtf8 text, 0)
     let c = decode_utf8 b
-    d <- either ((:[]) . Left) (strip_punct ~~> finalize_tokens) c
+    d <- either ((:[]) . Left) (strip_punct ~~> split_contract ~~> finalize_tokens) c
     return d
 
 mktok e pos = Token e pos False False
@@ -127,16 +127,6 @@ mark_multi corpus = extract re corpus tokenify
         where c = Char8.take 1 mtch
     re = compile_re "(?:-{2,}|—|\\.{2,}|\\.(?: \\.){1,}|…|[!\\?]{1,}|\n{2,})"
 
-{-
-    \(mtch, pos) -> case Char8.take 1 mtch of
-        "." -> [Left $ mktok Ellipsis pos]
-        "-" -> [Left $ mktok Dash pos]
-        "?" -> [Left $ Token (Word mtch) pos True False]
-        "!" -> [Left $ Token (Word mtch) pos True False]
-        "\n" -> [Left $ mktok ParaStart pos]
-        _ -> []
--}
-
 sep_words :: TextPos ByteString -> Chunks ByteString
 sep_words (chunk, pos) = mark pos $ Char8.words chunk
     where
@@ -150,6 +140,12 @@ decode_utf8 (Left t@(Token {entity=e})) =
 strip_punct :: TextPos Text -> Chunks Text
 strip_punct (chunk, pos) = [Right (strip chunk, pos)]
     where strip = Text.dropAround (`elem` ",;:()[]{}“”’\"\')")
+
+split_contract :: TextPos Text -> Chunks Text
+split_contract (chunk, pos) = rv 0 $ Text.split (`elem` "'’") chunk
+    where
+    rv _ [] = []
+    rv n (x:xs) = Right (x, n) : rv (n + Text.length x) xs
 
 finalize_tokens (chunk, pos) =
     [Left $ mktok (Word chunk) (pos, Text.length chunk)]
