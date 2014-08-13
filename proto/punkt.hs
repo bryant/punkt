@@ -51,7 +51,7 @@ mark_multi corpus = extract re corpus tokenify
         | c == "." || mtch == encodeUtf8 "…" = [Left $ mktok Ellipsis pos]
         | c == "-" || mtch == encodeUtf8 "—" = [Left $ mktok Dash pos]
         | c == "?" || c == "!" = [Left $ Token (Word mtch) pos True False]
-        | c == "\n" = [Left $ mktok ParaStart pos]
+        | c == "\n" = []  -- [Left $ mktok ParaStart pos]
         | otherwise = []
         where c = Char8.take 1 mtch
     re = compile_re "(?:-{2,}|—|\\.{2,}|\\.(?: \\.){1,}|…|[!\\?]{1,}|\n{2,})"
