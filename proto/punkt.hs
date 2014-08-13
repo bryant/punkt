@@ -104,7 +104,7 @@ abbr_ll a b ab n = -2 * (null - alt)
     log = logBase 10
 
 dunning_ll :: (Floating a, Eq a) => a -> a -> a -> a -> a
-dunning_ll a b ab n = -2 * (s1 + s2 + s3 + s4)
+dunning_ll a b ab n = -2 * (s1 + s2 - s3 - s4)
     where
     (p0, p1, p2) = (b / n, ab / a, (b - ab) / (n - a))
     s1 = ab * log p0 + (a - ab) * log (1 - p0)
