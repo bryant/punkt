@@ -95,13 +95,23 @@ extract re (corpus, comp) whenmatch = concat $ berk matches corpus 0
         rv = whenmatch (m, (off, len)) : berk ps post (off + len)
     matches = map (! 0) $ Regex.matchAll re corpus
 
-dll a b ab n = -2 * (null - alt)
+abbr_ll :: Floating a => a -> a -> a -> a -> a
+abbr_ll a b ab n = -2 * (null - alt)
     where
-    (a', b', ab', n') = (fromIntegral a, fromIntegral b, fromIntegral ab, fromIntegral n)
-    null = ab' * log p1 + (a' - ab') * log (1 - p1)
-    alt = ab' * log p2 + (a' - ab') * log (1 - p2)
-    (p1, p2) = (b' / n', 0.99)
+    null = ab * log p1 + (a - ab) * log (1 - p1)
+    alt = ab * log p2 + (a - ab) * log (1 - p2)
+    (p1, p2) = (b / n, 0.99)
     log = logBase 10
+
+dunning_ll :: (Floating a, Eq a) => a -> a -> a -> a -> a
+dunning_ll a b ab n = -2 * (s1 + s2 + s3 + s4)
+    where
+    (p0, p1, p2) = (b / n, ab / a, (b - ab) / (n - a))
+    s1 = ab * log p0 + (a - ab) * log (1 - p0)
+    s2 = (b - ab) * log p0 + (n - a - b + ab) * log (1 - p0)
+    s3 = if a == ab then 0 else ab * log p1 + (a - ab) * log (1 - p1)
+    s4 = if b == ab then 0 else
+        (b - ab) * log p2 + (n - a - b + ab) * log (1 - p2)
 
 word_tokens toks = catMaybes $ map words_of toks
     where
@@ -111,6 +121,8 @@ word_tokens toks = catMaybes $ map words_of toks
 filter_with f = filter f . word_tokens . map entity
 
 num_words = fromIntegral . length . filter_with (const True)
+
+num_enders = fromIntegral . length . filter sentend
 
 num_periods = fromIntegral . length . filter_with (\w -> Text.last w == '.')
 
@@ -122,8 +134,8 @@ occurs_in word toks = any satisfying toks
     satisfying (Token {entity=(Word w)}) = w == word
     satisfying _ = False
 
-occurs_after :: (Token Text -> Bool) -> Text -> [Token Text] -> Bool
-occurs_after f word toks = any satisfying tokpairs
+occurs_after :: (Token Text -> Bool) -> Text -> [Token Text] -> [Bool]
+occurs_after f word toks = map satisfying tokpairs
     where
     satisfying (first, Token {entity=(Word w)}) = w == word && f first
     satisfying _ = False
@@ -132,7 +144,7 @@ occurs_after f word toks = any satisfying tokpairs
 prob_abbrev w toks = ll_abbr * f_len * f_periods * f_penalty
     where
     w_period = w `Text.snoc` '.'
-    ll_abbr = dll (occurs w_period toks + occurs w toks) (num_periods toks) (occurs w_period toks) (num_words toks)
+    ll_abbr = abbr_ll (occurs w_period toks + occurs w toks) (num_periods toks) (occurs w_period toks) (num_words toks)
     len = fromIntegral . Text.length $ Text.filter (/= '.') w
     f_len = 1 / exp len
     f_periods = fromIntegral $ Text.length (Text.filter (== '.') w) + 1
@@ -159,13 +171,23 @@ classify_periods toks = map maybe_abbrev toks
 --                               Nothing -> undecided
 ortho_heuristic :: Text -> [Token Text] -> Maybe Bool
 ortho_heuristic w toks = case isUpper $ Text.head w of
-    False -> case occurs_in titlecased toks || occurs_after sentend w toks of
+    False -> case occurs_in titlecased toks || or (occurs_after sentend w toks) of
         False -> Nothing
         True -> Just False
-    True -> case occurs_in lowercased toks && not (occurs_after non_ender w toks) of
+    True -> case occurs_in lowercased toks && (not . or) (occurs_after non_ender w toks) of
         False -> Nothing
         True -> Just True
     where
     non_ender t = not $ sentend t || entity t == ParaStart
     titlecased = toUpper (Text.head w) `Text.cons` Text.tail w
     lowercased = toLower (Text.head w) `Text.cons` Text.tail w
+
+freq_starter_heuristic :: Text -> [Token Text] -> Bool
+freq_starter_heuristic w toks = ll >= 30 && w1w2 * (num_words toks) > w1 * w2
+    where
+    w' = w `Text.snoc` '.'
+    w1 = fromIntegral $ num_enders toks
+    w2 = fromIntegral $ occurs w toks + occurs w' toks
+    w1w2 = fromIntegral $ num_occurs_after sentend w toks + num_occurs_after sentend w' toks
+    ll = dunning_ll w1 w2 w1w2 (num_words toks)
+    num_occurs_after f w toks = length . filter id $ occurs_after f w toks
