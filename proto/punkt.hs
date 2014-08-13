@@ -3,6 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+import Data.Char (isUpper, toUpper, toLower)
 import Data.Maybe (catMaybes)
 import qualified Text.Regex.PCRE as Regex
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -21,7 +22,7 @@ type TextPos a = (a, Int)
 type MatchPos = (Int, Int)
 
 data Entity a = Word a | ParaStart | Ellipsis | Dash | Ordinal
-    deriving (Show, Functor)
+    deriving (Show, Eq, Functor)
 
 data Token a = Token
     { entity :: Entity a
@@ -115,6 +116,19 @@ num_periods = fromIntegral . length . filter_with (\w -> Text.last w == '.')
 
 occurs werd = fromIntegral . length . filter_with (\w -> Text.toCaseFold w == Text.toCaseFold werd)
 
+occurs_in :: Text -> [Token Text] -> Bool
+occurs_in word toks = any satisfying toks
+    where
+    satisfying (Token {entity=(Word w)}) = w == word
+    satisfying _ = False
+
+occurs_after :: (Token Text -> Bool) -> Text -> [Token Text] -> Bool
+occurs_after f word toks = any satisfying tokpairs
+    where
+    satisfying (first, Token {entity=(Word w)}) = w == word && f first
+    satisfying _ = False
+    tokpairs = zipWith (,) toks $ drop 1 toks
+
 prob_abbrev w toks = ll_abbr * f_len * f_periods * f_penalty
     where
     w_period = w `Text.snoc` '.'
@@ -137,3 +151,21 @@ classify_periods toks = map maybe_abbrev toks
             False -> t { sentend = True }
             True -> t { abbrev = True }
     maybe_abbrev t = t
+
+-- given "tok0 tok1", where tok0 is abbr, decide if it is also a sentence
+-- end through the casing of tok1.
+-- > ortho_heuristic tok1 toks = Just True -> tok0 is also an end
+--                               Just False -> tok0 is definitively not
+--                               Nothing -> undecided
+ortho_heuristic :: Text -> [Token Text] -> Maybe Bool
+ortho_heuristic w toks = case isUpper $ Text.head w of
+    False -> case occurs_in titlecased toks || occurs_after sentend w toks of
+        False -> Nothing
+        True -> Just False
+    True -> case occurs_in lowercased toks && not (occurs_after non_ender w toks) of
+        False -> Nothing
+        True -> Just True
+    where
+    non_ender t = not $ sentend t || entity t == ParaStart
+    titlecased = toUpper (Text.head w) `Text.cons` Text.tail w
+    lowercased = toLower (Text.head w) `Text.cons` Text.tail w
