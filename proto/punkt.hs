@@ -5,13 +5,12 @@
 
 import Data.Char (isUpper, toUpper, toLower)
 import Data.Maybe (catMaybes)
-import qualified Text.Regex.PCRE as Regex
+import Text.Regex.TDFA.Text (compile)
+import Text.Regex.TDFA.Common (Regex, ExecOption(..))
+import Text.Regex.Base (matchAll, blankCompOpt, blankExecOpt)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text (Text)
 import qualified Data.Text as Text
-import qualified Data.ByteString.Char8 as Char8
-import Data.ByteString (ByteString)
-import Data.Bits ((.|.))
 import Data.Either (either)
 import Data.Array ((!))
 
@@ -23,6 +22,8 @@ type MatchPos = (Int, Int)
 
 data Entity a = Word a | ParaStart | Ellipsis | Dash | Ordinal
     deriving (Show, Eq, Functor)
+
+data Possible a = Possible a MatchPos
 
 data Token a = Token
     { entity :: Entity a
@@ -37,30 +38,31 @@ type Chunks a = [Either (Token a) (TextPos a)]
 -- process :: ByteString -> Chunks Text
 process text = do
     -- fmap decode_utf8 ((mark_multi ~~> sep_words) (text, 0))
-    b <- (mark_multi ~~> sep_words) (encodeUtf8 text, 0)
-    let c = decode_utf8 b
-    d <- either ((:[]) . Left) (strip_punct ~~> split_contract ~~> finalize_tokens) c
-    return d
+    --b <- (mark_multi ~~> sep_words) (encodeUtf8 text, 0)
+    --let c = decode_utf8 b
+    --d <- either ((:[]) . Left) (strip_punct ~~> split_contract ~~> finalize_tokens) c
+    stages (text, 0)
+    where stages = mark_multi ~~> sep_words ~~> strip_punct ~~>
+                   split_contract ~~> finalize_tokens
 
 mktok e pos = Token e pos False False
 
-mark_multi :: TextPos ByteString -> Chunks ByteString
 mark_multi corpus = extract re corpus tokenify
     where
     tokenify (mtch, pos)
-        | c == "." || mtch == encodeUtf8 "…" = [Left $ mktok Ellipsis pos]
-        | c == "-" || mtch == encodeUtf8 "—" = [Left $ mktok Dash pos]
+        | c == "." || mtch == "…" = [Left $ mktok Ellipsis pos]
+        | c == "-" || mtch == "—" = [Left $ mktok Dash pos]
         | c == "?" || c == "!" = [Left $ Token (Word mtch) pos True False]
         | c == "\n" = []  -- [Left $ mktok ParaStart pos]
         | otherwise = []
-        where c = Char8.take 1 mtch
-    re = compile_re "(?:-{2,}|—|\\.{2,}|\\.(?: \\.){1,}|…|[!\\?]{1,}|\n{2,})"
+        where c = Text.take 1 mtch
+    re = compile_re "(-{2,}|—|\\.{2,}|\\.( \\.){1,}|…|[!\\?]{1,}|\n{2,})"
 
-sep_words :: TextPos ByteString -> Chunks ByteString
-sep_words (chunk, pos) = mark pos $ Char8.words chunk
+sep_words :: TextPos Text -> Chunks Text
+sep_words (chunk, pos) = mark pos $ Text.words chunk
     where
     mark _ [] = []
-    mark n (x:xs) = Right (x, n) : mark (n + Char8.length x) xs
+    mark n (x:xs) = Right (x, n) : mark (n + Text.length x) xs
 
 decode_utf8 (Right (t, pos)) = Right (decodeUtf8 t, pos)
 decode_utf8 (Left t@(Token {entity=e})) =
@@ -79,9 +81,8 @@ split_contract (chunk, pos) = rv 0 $ Text.split (`elem` "'’") chunk
 finalize_tokens (chunk, pos) =
     [Left $ mktok (Word chunk) (pos, Text.length chunk)]
 
-extract :: Regex.Regex -> TextPos ByteString
-        -> ((ByteString, MatchPos) -> Chunks ByteString)
-        -> Chunks ByteString
+extract :: Regex -> TextPos Text -> ((Text, MatchPos) -> Chunks Text)
+        -> Chunks Text
 extract re (corpus, comp) whenmatch = concat $ berk matches corpus 0
     where
     -- cs:  abcdefghijklmnopqrs...
@@ -90,10 +91,10 @@ extract re (corpus, comp) whenmatch = concat $ berk matches corpus 0
     berk [] cs base = [[Right (cs, base + comp)]]
     berk ((off, len):ps) cs base = if pre == "" then rv else [Right (pre, base + comp)] : rv
         where
-        (pre, chunk) = Char8.splitAt (off - base) cs
-        (m, post) = Char8.splitAt len chunk
+        (pre, chunk) = Text.splitAt (off - base) cs
+        (m, post) = Text.splitAt len chunk
         rv = whenmatch (m, (off, len)) : berk ps post (off + len)
-    matches = map (! 0) $ Regex.matchAll re corpus
+    matches = map (! 0) $ matchAll re corpus
 
 abbr_ll :: Floating a => a -> a -> a -> a -> a
 abbr_ll a b ab n = -2 * (null - alt)
@@ -149,11 +150,10 @@ prob_abbrev w toks = ll_abbr * f_len * f_periods * f_penalty
     f_periods = fromIntegral $ Text.length (Text.filter (== '.') w) + 1
     f_penalty = 1 / len ^ occurs w toks
 
-compile_re :: String -> Regex.Regex
-compile_re = Regex.makeRegexOpts opts execopts
-    where
-    opts = Regex.compUTF8 .|. Regex.compDotAll
-    execopts = Regex.execBlank
+compile_re :: Text -> Regex
+compile_re re = case compile blankCompOpt (ExecOption False) re of
+    Right rv -> rv
+    Left wtf -> error wtf
 
 classify_periods toks = map maybe_abbrev toks
     where
