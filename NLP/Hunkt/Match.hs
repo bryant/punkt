@@ -2,7 +2,6 @@
 
 module NLP.Hunkt.Match where
 
-import qualified Data.Text as Text
 import Data.Text (Text)
 import Data.Array ((!))
 import Text.Regex.TDFA.Text (compile)
