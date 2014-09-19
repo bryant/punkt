@@ -64,6 +64,24 @@ dunning_log a b ab n = -2 * (s1 + s2 - s3 - s4)
     s4 = if b == ab then 0 else
         (b - ab) * log p2 + (n - a - b + ab) * log (1 - p2)
 
+-- c(w, ~.)
+freq :: Text -> Punkt Double
+freq w_ = fmap type_count Reader.ask >>=
+            return . fromIntegral . Map.findWithDefault 0 w
+    where w = norm w_
+
+-- c(w, .)
+freq_snoc_dot :: Text -> Punkt Double
+freq_snoc_dot w_ = freq wdot where wdot = w_ `Text.snoc` '.'
+-- potential slowdown if ghc doesn't know that norm "." == "."
+
+-- c(w) == c(w, .) + c(w, ~.)
+freq_type :: Text -> Punkt Double
+freq_type w_ = (+) <$> freq w_ <*> freq_snoc_dot w_
+
+dlen :: Text -> Double
+dlen = fromIntegral . Text.length
+
 -- probability that (w_ `snoc` '.') is an abbreviation.
 prob_abbr :: Map Text Int -> Int -> Text -> Double
 prob_abbr ctr ntoks w_ = log_like * f_len * f_periods * f_penalty
