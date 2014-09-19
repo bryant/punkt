@@ -65,10 +65,17 @@ dunning_log a b ab n | b == 0 || ab == 0 = 0
     s4 = if b == ab then 0 else
         (b - ab) * log p2 + (n - a - b + ab) * log (1 - p2)
 
+ask_type_count = Reader.liftM type_count Reader.ask
+ask_total_toks = Reader.liftM (fromIntegral . total_toks) Reader.ask
+ask_total_enders = Reader.liftM (fromIntegral . total_enders) Reader.ask
+
+ask_ortho :: Text -> Punkt OrthoFreq
+ask_ortho w_ = return . Map.findWithDefault (OrthoFreq 0 0 0 0 0) (norm w_)
+               =<< fmap ortho_count Reader.ask
+
 -- c(w, ~.)
 freq :: Text -> Punkt Double
-freq w_ = fmap type_count Reader.ask >>=
-            return . fromIntegral . Map.findWithDefault 0 w
+freq w_ = ask_type_count >>= return . fromIntegral . Map.findWithDefault 0 w
     where w = norm w_
 
 -- c(w, .)
@@ -84,51 +91,37 @@ dlen :: Text -> Double
 dlen = fromIntegral . Text.length
 
 -- probability that (w_ `snoc` '.') is an abbreviation.
-prob_abbr :: Map Text Int -> Int -> Text -> Double
-prob_abbr ctr ntoks w_ = log_like * f_len * f_periods * f_penalty
+prob_abbr :: Text -> Punkt Double
+prob_abbr w_ = compensate =<< strunk_log <$> freq_type w_ <*> freq "."
+                                         <*> freq_snoc_dot w_ <*> ask_total_toks
     where
-    log_like = strunk_log (count wp + count w) (count ".")
-                          (count wp) (fromIntegral ntoks)
-    w = norm w_
-    wp = w `Text.snoc` '.'
-
-    f_len = 1 / exp (len $ Text.filter (/= '.') w)
-    f_periods = 1 + len (Text.filter (== '.') w)
-    f_penalty = 1 / len (Text.filter (/= '.') w) ^ count w
-
-    len = fromIntegral . Text.length
-    count w = fromIntegral $ Map.findWithDefault 0 w ctr
+    compensate loglike = do
+        f_penalty <- do
+            p <- freq w_  -- c(w, ~.)
+            return $ 1 / exp (dlen (Text.filter (/= '.') w_) ** p)
+        return $ loglike * f_len * f_periods * f_penalty
+    f_len = 1 / exp (dlen $ Text.filter (/= '.') w_)
+    f_periods = 1 + dlen (Text.filter (== '.') w_)
 
 -- decides if w is a sentence ender based on its capitalization
-decide_ortho :: Map Text OrthoFreq -> Text -> Maybe Bool
-decide_ortho ctr w_
-    | upper && occurs_lower && never_internal_upper = Just True
-    | lower && (occurs_upper || never_first_lower) = Just False
-    | otherwise = Nothing
-    where
-    upper = not lower
-    lower = isLower $ Text.head w_
-
-    occurs_upper = freq_upper orthofreq > 0
-    occurs_lower = freq_lower orthofreq > 0
-    never_internal_upper = freq_internal_upper orthofreq == 0
-    never_first_lower = freq_first_lower orthofreq == 0
-    orthofreq = Map.findWithDefault (OrthoFreq 0 0 0 0 0) (norm w_) ctr
+decide_ortho :: Text -> Punkt (Maybe Bool)
+decide_ortho w_ = do
+    orthofreq <- ask_ortho w_
+    let occurs_upper = freq_upper orthofreq > 0
+    let occurs_lower = freq_lower orthofreq > 0
+    let never_internal_upper = freq_internal_upper orthofreq == 0
+    let never_first_lower = freq_first_lower orthofreq == 0
+    let rv | not lower && occurs_lower && never_internal_upper = Just True
+           | lower && (occurs_upper || never_first_lower) = Just False
+           | otherwise = Nothing
+    return rv
+    where lower = isLower $ Text.head w_
 
 -- probability that w_ is a frequent sentence starter
-prob_starter :: Map Text Int -> Map Text OrthoFreq -> Int -> Int -> Text ->
-                Double
-prob_starter abbrctr orthoctr nenders ntoks w_
-    | count w == 0 || count_w_start == 0 = 0
-    | otherwise = dunning_log (fromIntegral nenders) (count w + count wp)
-                              count_w_start (fromIntegral ntoks)
-    where
-    w = norm w_
-    wp = w `Text.snoc` '.'
-
-    count w = fromIntegral $ Map.findWithDefault 0 w abbrctr
-    count_w_start = fromIntegral $ freq_after_ender orthofreq
-    orthofreq = Map.findWithDefault (OrthoFreq 0 0 0 0 0) w orthoctr
+prob_starter :: Text -> Punkt Double
+prob_starter w_ = dunning_log <$> ask_total_enders <*> freq_type w_
+                              <*> fafterend <*> ask_total_toks
+    where fafterend = fromIntegral . freq_after_ender <$> ask_ortho w_
 
 build_type_count :: [Token] -> Map Text Int
 build_type_count = List.foldl' update initcount
@@ -201,8 +194,7 @@ build_punkt_data corpus = PunktData typecnt orthocnt nender (length toks)
 classify_by_type :: Token -> Punkt Token
 classify_by_type tok@(Token {entity=(Word w)})
     | Text.last w == '.' = do
-        p <- prob_abbr <$> fmap type_count Reader.ask
-                       <*> fmap total_toks Reader.ask <*> return (Text.init w)
+        p <- prob_abbr $ Text.init w
         return $ tok { abbrev = p >= 0.3, sentend = p < 0.3}
     | otherwise = return tok
 classify_by_type tok = return tok
@@ -210,12 +202,11 @@ classify_by_type tok = return tok
 classify_by_next :: (Token, Token) -> Punkt Token
 classify_by_next (this, Token (Word next) _ _)
     | entity this == Ellipsis || abbrev this = do
-        PunktData typecnt orthocnt nenders ntoks <- Reader.ask
-        return $ case decide_ortho orthocnt next of
+        ortho_says <- decide_ortho next
+        prob_says <- prob_starter next
+        return $ case ortho_says of
+            Nothing -> this { sentend = prob_says >= 30 }
             Just bool -> this { sentend = bool }
-            Nothing -> do
-                this { sentend =
-                    prob_starter typecnt orthocnt nenders ntoks next >= 30 }
 classify_by_next (this, _) = return this
 
 coeur :: Text -> [Token]
