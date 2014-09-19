@@ -26,3 +26,6 @@ re_split re str = re_split_with re str id (const Nothing)
 
 re_compile :: Text -> Regex
 re_compile re = rv where Right rv = compile blankCompOpt (ExecOption False) re
+
+word_seps = re_compile "([ \t\n]+|-{2,}|—|\\.{2,}|\\.( \\.)+|…|[!\\?]{1,})"
+intrasep = re_compile "[-'’]"

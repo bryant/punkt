@@ -141,7 +141,6 @@ build_type_count = List.foldl' update initcount
         [] -> w_
         w_ : _ -> w_  -- dubious
 
-    intrasep = re_compile "[-'’]"
     last_per w = Text.last w == '.'
 
 build_ortho_count :: [Token] -> Map Text OrthoFreq
@@ -169,8 +168,6 @@ build_ortho_count toks = List.foldl' update Map.empty $
 to_tokens :: Text -> [Token]
 to_tokens corpus = re_split_with word_seps corpus tok_word add_delim
     where
-    word_seps = re_compile "([ \t\n]+|-{2,}|—|\\.{2,}|\\.( \\.)+|…|[!\\?]{1,})"
-
     tok_word w = Token (Word stripped) False False
         where stripped = Text.dropAround (`elem` ",;:()[]{}“”’\"\')") w
 
