@@ -55,7 +55,8 @@ strunk_log a b ab n = -2 * (null - alt)
 
 -- vanilla dunning log likelihood
 dunning_log :: Double -> Double -> Double -> Double -> Double
-dunning_log a b ab n = -2 * (s1 + s2 - s3 - s4)
+dunning_log a b ab n | b == 0 || ab == 0 = 0
+                     | otherwise = -2 * (s1 + s2 - s3 - s4)
     where
     (p0, p1, p2) = (b / n, ab / a, (b - ab) / (n - a))
     s1 = ab * log p0 + (a - ab) * log (1 - p0)
