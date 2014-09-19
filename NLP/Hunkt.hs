@@ -188,8 +188,8 @@ classify_by_type tok@(Token {entity=(Word w)})
     | otherwise = return tok
 classify_by_type tok = return tok
 
-classify_by_tok :: (Token, Token) -> Punkt Token
-classify_by_tok (this, Token (Word next) _ _)
+classify_by_next :: (Token, Token) -> Punkt Token
+classify_by_next (this, Token (Word next) _ _)
     | entity this == Ellipsis || abbrev this = do
         PunktData typecnt orthocnt nenders ntoks <- Reader.ask
         return $ case decide_ortho orthocnt next of
@@ -197,16 +197,15 @@ classify_by_tok (this, Token (Word next) _ _)
             Nothing -> do
                 this { sentend =
                     prob_starter typecnt orthocnt nenders ntoks next >= 30 }
-classify_by_tok (this, _) = return this
+classify_by_next (this, _) = return this
 
 coeur :: Text -> [Token]
 coeur corpus = Reader.runReader c punkt
     where
     toks = to_tokens corpus
     punkt = build_punkt_data corpus
-    c = do
-        classified <- mapM classify_by_type toks
-        mapM classify_by_tok . zip classified $ drop 1 classified
+    c = mapM classify_by_type toks >>= mapM classify_by_next . to_pairs
+    to_pairs xs = zip xs $ drop 1 xs
 
 {-
 --split_sentences :: Text -> Text
