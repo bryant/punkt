@@ -168,7 +168,7 @@ build_ortho_count toks = List.foldl' update Map.empty $
 to_tokens :: Text -> [Token]
 to_tokens corpus = re_split_with word_seps corpus tok_word add_delim
     where
-    tok_word w = Token (Word stripped) False False
+    tok_word w = Just $ Token (Word stripped) False False
         where stripped = Text.dropAround (`elem` ",;:()[]{}“”’\"\')") w
 
     add_delim delim | d `elem` "—-" = Just $ Token Dash False False

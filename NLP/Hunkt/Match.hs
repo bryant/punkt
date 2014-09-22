@@ -6,23 +6,32 @@ import Data.Text (Text)
 import Data.Array ((!))
 import Text.Regex.TDFA.Text (compile)
 import Text.Regex.TDFA (Regex, matchOnceText, blankCompOpt, ExecOption(..))
+import Data.Maybe (maybe, catMaybes)
+import Data.Either (lefts)
 
-re_split' :: Regex -> Text -> (Text -> Maybe a) -> [Either Text a]
-re_split' re str whensplit = case matchOnceText re str of
-    Nothing -> [Left str]
-    Just (pre, match, post) -> Left pre : case whensplit $ fst (match ! 0) of
-        Nothing -> re_split' re post whensplit
-        Just mid -> Right mid : re_split' re post whensplit
-
-re_split_with :: Regex -> Text -> (Text -> a) -> (Text -> Maybe a) -> [a]
-re_split_with re str whenchunk whensplit = map (either whenchunk id) $ filter not_blank someblanks
+re_split_impl :: Regex -> Text -> [Either Text Text]
+re_split_impl re str = filter (/= Left "") $ chunk re str
     where
-    someblanks = re_split' re str whensplit
-    not_blank (Left "") = False
-    not_blank _ = True
+    chunk re str = maybe [Left str] link $ matchOnceText re str
+    link (pre, match, post) = Left pre : Right (fst $ match ! 0) : chunk re post
+
+re_split_with :: Regex -> Text -> (Text -> Maybe a) -> (Text -> Maybe a) -> [a]
+re_split_with re str whenmatch whensplit =
+    catMaybes $ map (either whenmatch whensplit) (re_split_impl re str)
+
+re_split_pos :: Regex -> Text -> [(Either Text Text, Int)]
+re_split_pos re str = filter ((/= Left "") . fst) $ chunk re str 0
+    where
+    chunk re str relpos = case matchOnceText re str of
+        Nothing -> [(Left str, relpos)]
+        Just (pre, match, post) ->
+            let (mtext, (moffset, mlen)) = match ! 0
+                (mpos, newrelpos) = (relpos + moffset, mpos + mlen)
+            in
+            (Left pre, relpos) : (Right mtext, mpos) : chunk re post newrelpos
 
 re_split :: Regex -> Text -> [Text]
-re_split re str = re_split_with re str id (const Nothing)
+re_split re str = lefts $ re_split_impl re str
 
 re_compile :: Text -> Regex
 re_compile re = rv where Right rv = compile blankCompOpt (ExecOption False) re
