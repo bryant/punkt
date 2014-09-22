@@ -19,16 +19,16 @@ re_split_with :: Regex -> Text -> (Text -> Maybe a) -> (Text -> Maybe a) -> [a]
 re_split_with re str whenmatch whensplit =
     catMaybes $ map (either whenmatch whensplit) (re_split_impl re str)
 
-re_split_pos :: Regex -> Text -> [(Either Text Text, Int)]
-re_split_pos re str = filter ((/= Left "") . fst) $ chunk re str 0
+re_split_pos :: Regex -> Text -> [Either (Text, Int) (Text, Int)]
+re_split_pos re str = filter not_blank $ chunk re str 0
     where
+    not_blank xs = case xs of { Left ("", _) -> False; _ -> True; }
     chunk re str relpos = case matchOnceText re str of
-        Nothing -> [(Left str, relpos)]
+        Nothing -> [Left (str, relpos)]
         Just (pre, match, post) ->
             let (mtext, (moffset, mlen)) = match ! 0
-                (mpos, newrelpos) = (relpos + moffset, mpos + mlen)
-            in
-            (Left pre, relpos) : (Right mtext, mpos) : chunk re post newrelpos
+                (mpos, relpos') = (relpos + moffset, mpos + mlen)
+            in Left (pre, relpos) : Right (mtext, mpos) : chunk re post relpos'
 
 re_split :: Regex -> Text -> [Text]
 re_split re str = lefts $ re_split_impl re str
