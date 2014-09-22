@@ -221,3 +221,11 @@ find_breaks corpus = Reader.runReader find_breaks punkt
         abbrd <- mapM classify_by_type toks
         final <- Reader.zipWithM classify_by_next abbrd (drop 1 abbrd)
         return $ map (\t -> offset t + toklen t) (filter sentend final)
+
+chop :: [Int] -> Text -> [Text]
+chop offsets text = zipWith (substr text) offsets (drop 1 offsets)
+    where substr text m n = Text.take (n - m) $ Text.drop m text
+
+split_sentences :: Text -> [Text]
+split_sentences corpus = chop (0 : breaks ++ [Text.length corpus - 1]) corpus
+    where breaks = find_breaks corpus
