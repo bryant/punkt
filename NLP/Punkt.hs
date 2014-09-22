@@ -12,7 +12,7 @@ import qualified Data.List as List
 import Control.Applicative ((<$>), (<*>))
 import qualified Control.Monad.Reader as Reader
 
-import NLP.Punkt.Match
+import NLP.Punkt.Match (re_split, re_split_pos, intrasep, word_seps)
 
 data OrthoFreq = OrthoFreq {
     freq_lower :: Int,
