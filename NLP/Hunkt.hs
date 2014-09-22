@@ -4,6 +4,7 @@ module NLP.Hunkt where
 
 import qualified Data.Text as Text
 import Data.Text (Text)
+import Data.Maybe (catMaybes)
 import Data.Map (Map)
 import Data.Char (isLower)
 import qualified Data.Map as Map
@@ -34,6 +35,7 @@ data Entity a = Word a | ParaStart | Ellipsis | Dash
     deriving (Eq, Show)
 
 data Token = Token {
+    offset :: Int,
     entity :: Entity Text,
     sentend :: Bool,
     abbrev :: Bool
@@ -147,7 +149,7 @@ build_ortho_count :: [Token] -> Map Text OrthoFreq
 build_ortho_count toks = List.foldl' update Map.empty $
                             zip (dummy : toks) toks
     where
-    dummy = Token (Word " ") True False
+    dummy = Token 0 (Word " ") True False
     -- hack: add dummy to process first token
 
     update :: Map Text OrthoFreq -> (Token, Token) -> Map Text OrthoFreq
@@ -166,15 +168,17 @@ build_ortho_count toks = List.foldl' update Map.empty $
     update ctr _ = ctr
 
 to_tokens :: Text -> [Token]
-to_tokens corpus = re_split_with word_seps corpus tok_word add_delim
+to_tokens corpus = catMaybes . map (either tok_word add_delim) $
+                        re_split_pos word_seps corpus
     where
-    tok_word w = Just $ Token (Word stripped) False False
+    tok_word (w, pos) = Just $ Token pos (Word stripped) False False
         where stripped = Text.dropAround (`elem` ",;:()[]{}“”’\"\')") w
 
-    add_delim delim | d `elem` "—-" = Just $ Token Dash False False
-                    | d `elem` ".…" = Just $ Token Ellipsis False False
-                    | d `elem` "!?" = Just $ Token (Word delim) True False
-                    | otherwise = Nothing
+    add_delim (delim,pos)
+        | d `elem` "—-" = Just $ Token pos Dash False False
+        | d `elem` ".…" = Just $ Token pos Ellipsis False False
+        | d `elem` "!?" = Just $ Token pos (Word delim) True False
+        | otherwise = Nothing
         where d = Text.head delim
 
 build_punkt_data :: [Token] -> PunktData
@@ -185,7 +189,7 @@ build_punkt_data toks = PunktData typecnt orthocnt nender (length toks)
     refined = Reader.runReader (mapM classify_by_type toks) temppunkt
     orthocnt = build_ortho_count refined
     nender = length . filter (sentend . fst) $ zip (dummy : refined) refined
-    dummy = Token (Word " ") True False
+    dummy = Token 0 (Word " ") True False
 
 classify_by_type :: Token -> Punkt Token
 classify_by_type tok@(Token {entity=(Word w)})
@@ -196,7 +200,7 @@ classify_by_type tok@(Token {entity=(Word w)})
 classify_by_type tok = return tok
 
 classify_by_next :: (Token, Token) -> Punkt Token
-classify_by_next (this, Token (Word next) _ _)
+classify_by_next (this, Token _ (Word next) _ _)
     | entity this == Ellipsis || abbrev this = do
         ortho_says <- decide_ortho next
         prob_says <- prob_starter next
