@@ -177,10 +177,9 @@ to_tokens corpus = re_split_with word_seps corpus tok_word add_delim
                     | otherwise = Nothing
         where d = Text.head delim
 
-build_punkt_data :: Text -> PunktData
-build_punkt_data corpus = PunktData typecnt orthocnt nender (length toks)
+build_punkt_data :: [Token] -> PunktData
+build_punkt_data toks = PunktData typecnt orthocnt nender (length toks)
     where
-    toks = to_tokens corpus
     typecnt = build_type_count toks
     temppunkt = PunktData typecnt Map.empty 0 (length toks)
     refined = Reader.runReader (mapM classify_by_type toks) temppunkt
@@ -210,7 +209,7 @@ coeur :: Text -> [Token]
 coeur corpus = Reader.runReader c punkt
     where
     toks = to_tokens corpus
-    punkt = build_punkt_data corpus
+    punkt = build_punkt_data toks
     c = mapM classify_by_type toks >>= mapM classify_by_next . to_pairs
     to_pairs xs = zip xs $ drop 1 xs
 
