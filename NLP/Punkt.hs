@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module NLP.Hunkt where
+module NLP.Punkt where
 
 import qualified Data.Text as Text
 import Data.Text (Text)
@@ -12,7 +12,7 @@ import qualified Data.List as List
 import Control.Applicative ((<$>), (<*>))
 import qualified Control.Monad.Reader as Reader
 
-import NLP.Hunkt.Match
+import NLP.Punkt.Match
 
 data OrthoFreq = OrthoFreq {
     freq_lower :: Int,
@@ -172,8 +172,9 @@ to_tokens :: Text -> [Token]
 to_tokens corpus = catMaybes . map (either tok_word add_delim) $
                         re_split_pos word_seps corpus
     where
-    tok_word (w, pos) = Just $ Token pos (len w) (Word stripped) False False
-        where stripped = Text.dropAround (`elem` ",;:()[]{}“”’\"\')") w
+    tok_word (w, pos) = case Text.dropAround (`elem` ",;:()[]{}“”’\"\')") w of
+        "" -> Nothing
+        s -> Just $ Token pos (len s) (Word s) False False
 
     add_delim (delim, pos)
         | d `elem` "—-" = Just $ Token pos (len delim) Dash False False
