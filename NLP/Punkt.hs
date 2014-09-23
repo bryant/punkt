@@ -169,11 +169,12 @@ build_ortho_count toks = List.foldl' update Map.empty $
             where int |+ bool = if bool then int + 1 else int
 
         wortho = upd z lower (not lower) (first && lower)
-                       (not first && not lower) first
+                       (not first && not lower) afterender
         z = Map.findWithDefault (OrthoFreq 0 0 0 0 0) wnorm ctr
         wnorm = norm w
         lower = isLower $ Text.head w
-        first = sentend prev
+        first = sentend prev || abbrev prev
+        afterender = sentend prev
     update ctr _ = ctr
 
 to_tokens :: Text -> [Token]
