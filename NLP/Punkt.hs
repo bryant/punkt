@@ -109,7 +109,7 @@ prob_abbr w_ = compensate =<< strunk_log <$> freq_type w_ <*> freq "."
     compensate loglike = do
         f_penalty <- do
             p <- freq w_  -- c(w, ~.)
-            return $ 1 / exp (dlen (Text.filter (/= '.') w_) ** p)
+            return $ 1 / dlen (Text.filter (/= '.') w_) ** p
         return $ loglike * f_len * f_periods * f_penalty
     f_len = 1 / exp (dlen $ Text.filter (/= '.') w_)
     f_periods = 1 + dlen (Text.filter (== '.') w_)
