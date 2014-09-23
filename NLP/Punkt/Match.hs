@@ -1,6 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module NLP.Punkt.Match where
+module NLP.Punkt.Match (
+    re_split_impl,
+    re_split_pos,
+    re_split,
+    re_compile,
+    word_seps,
+    intrasep
+    ) where
 
 import Data.Text (Text)
 import Data.Array ((!))
