@@ -231,3 +231,6 @@ chop offsets text = zipWith (substr text) offsets (drop 1 offsets)
 split_sentences :: Text -> [Text]
 split_sentences corpus = chop (0 : breaks ++ [Text.length corpus - 1]) corpus
     where breaks = find_breaks corpus
+
+runPunkt :: PunktData -> Punkt a -> a
+runPunkt = flip Reader.runReader
