@@ -1,14 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module NLP.Punkt (
-    OrthoFreq(..),
-    PunktData(..),
-    Entity(..),
-    Token(..),
-    Punkt,
-    build_punkt_data,
-    split_sentences
-    ) where
+module NLP.Punkt where
 
 import qualified Data.Text as Text
 import Data.Text (Text)
