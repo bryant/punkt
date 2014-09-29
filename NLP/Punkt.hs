@@ -173,14 +173,14 @@ to_tokens :: Text -> [Token]
 to_tokens corpus = catMaybes . map (either tok_word add_delim) $
                         re_split_pos word_seps corpus
     where
-    tok_word (w, pos) = case Text.dropAround (`elem` ",;:()[]{}“”’\"\')") w of
+    tok_word (w, pos) = case Text.dropAround (`elem` ",:()[]{}“”’\"\')") w of
         "" -> Nothing
         s -> Just $ Token pos (len s) (Word s) False False
 
     add_delim (delim, pos)
         | d `elem` "—-" = Just $ Token pos (len delim) Dash False False
         | d `elem` ".…" = Just $ Token pos (len delim) Ellipsis False False
-        | d `elem` "!?" = Just $ Token pos (len delim) (Word delim) True False
+        | d `elem` ";!?" = Just $ Token pos (len delim) (Word delim) True False
         | otherwise = Nothing
         where d = Text.head delim
 
