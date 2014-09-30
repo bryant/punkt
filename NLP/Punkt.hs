@@ -161,6 +161,8 @@ build_ortho_count toks = List.foldl' update Map.empty $
         z = Map.findWithDefault (OrthoFreq 0 0 0 0 0) wnorm ctr
         wnorm = norm w
         lower = isLower $ Text.head w
+        -- TODO: this is wrong: ortho only considers definite enders and
+        -- non-initials
         first = sentend prev || abbrev prev
         -- TODO: also a possible starter if it follows an ellipsis
         -- after_poss_ender = sentend prev || abbrev prev || entity prev ==
