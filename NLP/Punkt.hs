@@ -172,17 +172,11 @@ build_ortho_count toks = List.foldl' update Map.empty $
             where int |+ bool = if bool then int + 1 else int
 
         wortho = upd z lower (not lower) (first && lower)
-                       (not first && not lower) afterender
+                       (not first && not lower) first
         z = Map.findWithDefault (OrthoFreq 0 0 0 0 0) wnorm ctr
         wnorm = norm w
         lower = isLower $ Text.head w
-        -- TODO: this is wrong: ortho only considers definite enders and
-        -- non-initials
-        first = sentend prev || abbrev prev
-        -- TODO: also a possible starter if it follows an ellipsis
-        -- after_poss_ender = sentend prev || abbrev prev || entity prev ==
-        -- Ellipsis
-        afterender = sentend prev
+        first = sentend prev && not (is_initial prev)
     update ctr _ = ctr
 
 build_collocs :: [Token] -> Map (Text, Text) Int
