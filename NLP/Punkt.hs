@@ -54,6 +54,9 @@ is_initial (Token {entity=Word w True}) =
     Text.length w == 1 && isAlpha (Text.head w)
 is_initial _ = False
 
+is_word :: Token -> Bool
+is_word tok = case entity tok of { Word _ _ -> True; _ -> False; }
+
 -- dunning log likelihood modified by kiss/strunk
 strunk_log :: Double -> Double -> Double -> Double -> Double
 strunk_log a b ab n = -2 * (null - alt)
@@ -208,7 +211,7 @@ to_tokens corpus = catMaybes . map (either tok_word add_delim) $
     len = Text.length
 
 build_punkt_data :: [Token] -> PunktData
-build_punkt_data toks = PunktData typecnt orthocnt collocs nender (length toks)
+build_punkt_data toks = PunktData typecnt orthocnt collocs nender totes
     where
     typecnt = build_type_count toks
     temppunkt = PunktData typecnt Map.empty Map.empty 0 (length toks)
@@ -217,6 +220,7 @@ build_punkt_data toks = PunktData typecnt orthocnt collocs nender (length toks)
     collocs = build_collocs refined
     nender = length . filter (sentend . fst) $ zip (dummy : refined) refined
     dummy = Token 0 0 (Word " " False) True False
+    totes = length $ filter is_word toks
 
 classify_by_type :: Token -> Punkt Token
 classify_by_type tok@(Token {entity=(Word w True)}) = do
