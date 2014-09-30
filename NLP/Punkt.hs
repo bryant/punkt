@@ -6,7 +6,7 @@ import qualified Data.Text as Text
 import Data.Text (Text)
 import Data.Maybe (catMaybes)
 import Data.Map (Map)
-import Data.Char (isLower)
+import Data.Char (isLower, isAlpha)
 import qualified Data.Map as Map
 import qualified Data.List as List
 import Control.Applicative ((<$>), (<*>))
@@ -47,6 +47,9 @@ type Punkt = Reader.Reader PunktData
 
 norm :: Text -> Text
 norm = Text.toLower
+
+is_initial :: Text -> Bool
+is_initial w = Text.length w == 1 && isAlpha (Text.head w)
 
 -- dunning log likelihood modified by kiss/strunk
 strunk_log :: Double -> Double -> Double -> Double -> Double
