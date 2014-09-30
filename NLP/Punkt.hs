@@ -32,7 +32,7 @@ data PunktData = PunktData {
     }
     deriving Show
 
-data Entity a = Word a Bool | ParaStart | Ellipsis | Dash
+data Entity a = Word a Bool | Punct a | ParaStart | Ellipsis | Dash
     deriving (Eq, Show)
 
 data Token = Token {
@@ -201,8 +201,7 @@ to_tokens corpus = catMaybes . map (either tok_word add_delim) $
     add_delim (delim, pos)
         | d `elem` "—-" = Just $ Token pos (len delim) Dash False False
         | d `elem` ".…" = Just $ Token pos (len delim) Ellipsis False False
-        | d `elem` ";!?" = Just $ Token pos (len delim) (Word delim False)
-                                        True False
+        | d `elem` ";!?" = Just $ Token pos (len delim) (Punct delim) True False
         | otherwise = Nothing
         where d = Text.head delim
 
