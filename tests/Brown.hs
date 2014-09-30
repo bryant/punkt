@@ -37,6 +37,12 @@ parse_corpus = map (to_tok . Text.breakOnEnd "/") . Text.words
 non_re = re_compile "(-{2,}|\\(|\\)|,|:|`{1,}|'{1,})"
 word_re = re_compile "[A-Za-z0-9\\$\\*]"
 
+ctx_filter :: Int -> (a -> Bool) -> [a] -> [[a]]
+ctx_filter n match xs = map (\k -> subseg (k-n) (k+n) xs) matches
+    where
+    matches = map snd . filter (match . fst) $ zip xs [0..]
+    subseg m n = take (n - m) . drop m
+
 to_punkt_toks :: [Tagged] -> [Token]
 to_punkt_toks = map to_punkt . group_enders . filter (not . is_misc)
     where
