@@ -31,7 +31,7 @@ data PunktData = PunktData {
     }
     deriving Show
 
-data Entity a = Word a | ParaStart | Ellipsis | Dash
+data Entity a = Word a Bool | ParaStart | Ellipsis | Dash
     deriving (Eq, Show)
 
 data Token = Token {
@@ -131,30 +131,26 @@ build_type_count = List.foldl' update initcount
     where
     initcount = Map.singleton "." 0
 
-    update ctr (Token {entity=(Word w)})
-        | last_per w = Map.update (\n -> Just $ n + 1) "." ctr_
+    update ctr (Token {entity=(Word w per)})
+        | per = Map.update (\n -> Just $ n + 1) "." ctr_
         | otherwise = ctr_
         where
         ctr_ = Map.insertWith (\_ n -> n + 1) wnorm 1 ctr
-        wnorm = norm $ extract_abbr w
+        wnorm = norm $ if per then w `Text.snoc` '.' else w
     update ctr _ = ctr
 
-    -- catch possible abbreviations wrapped in hyphenated and apostrophe forms
-    extract_abbr w_ = case filter last_per (re_split intrasep w_) of
-        [] -> w_
-        w_ : _ -> w_  -- dubious
-
-    last_per w = Text.last w == '.'
+    -- TODO: catch possible abbreviations wrapped in hyphenated and apostrophe
+    -- forms in lexer
 
 build_ortho_count :: [Token] -> Map Text OrthoFreq
 build_ortho_count toks = List.foldl' update Map.empty $
                             zip (dummy : toks) toks
     where
-    dummy = Token 0 0 (Word " ") True False
+    dummy = Token 0 0 (Word " " False) True False
     -- hack: add dummy to process first token
 
     update :: Map Text OrthoFreq -> (Token, Token) -> Map Text OrthoFreq
-    update ctr (prev, Token {entity=(Word w)}) = Map.insert wnorm wortho ctr
+    update ctr (prev, Token {entity=(Word w _)}) = Map.insert wnorm wortho ctr
         where
         upd (OrthoFreq a b c d e) a' b' c' d' e' =
             OrthoFreq (a |+ a') (b |+ b') (c |+ c') (d |+ d') (e |+ e')
@@ -166,6 +162,9 @@ build_ortho_count toks = List.foldl' update Map.empty $
         wnorm = norm w
         lower = isLower $ Text.head w
         first = sentend prev || abbrev prev
+        -- TODO: also a possible starter if it follows an ellipsis
+        -- after_poss_ender = sentend prev || abbrev prev || entity prev ==
+        -- Ellipsis
         afterender = sentend prev
     update ctr _ = ctr
 
@@ -173,14 +172,19 @@ to_tokens :: Text -> [Token]
 to_tokens corpus = catMaybes . map (either tok_word add_delim) $
                         re_split_pos word_seps corpus
     where
-    tok_word (w, pos) = case Text.dropAround (`elem` ",:()[]{}“”’\"\')") w of
-        "" -> Nothing
-        s -> Just $ Token pos (len s) (Word s) False False
+    tok_word (w, pos)
+        | trim == "" = Nothing
+        | otherwise = Just $ Token pos (len trim) (Word s period) False False
+        where
+        trim = Text.dropAround (`elem` ",:()[]{}“”’\"\')") w
+        period = Text.last trim == '.'
+        s = if period then Text.init trim else trim
 
     add_delim (delim, pos)
         | d `elem` "—-" = Just $ Token pos (len delim) Dash False False
         | d `elem` ".…" = Just $ Token pos (len delim) Ellipsis False False
-        | d `elem` ";!?" = Just $ Token pos (len delim) (Word delim) True False
+        | d `elem` ";!?" = Just $ Token pos (len delim) (Word delim False)
+                                        True False
         | otherwise = Nothing
         where d = Text.head delim
 
@@ -194,18 +198,16 @@ build_punkt_data toks = PunktData typecnt orthocnt nender (length toks)
     refined = Reader.runReader (mapM classify_by_type toks) temppunkt
     orthocnt = build_ortho_count refined
     nender = length . filter (sentend . fst) $ zip (dummy : refined) refined
-    dummy = Token 0 0 (Word " ") True False
+    dummy = Token 0 0 (Word " " False) True False
 
 classify_by_type :: Token -> Punkt Token
-classify_by_type tok@(Token {entity=(Word w)})
-    | Text.last w == '.' = do
-        p <- prob_abbr $ Text.init w
-        return $ tok { abbrev = p >= 0.3, sentend = p < 0.3}
-    | otherwise = return tok
+classify_by_type tok@(Token {entity=(Word w True)}) = do
+    p <- prob_abbr w
+    return $ tok { abbrev = p >= 0.3, sentend = p < 0.3}
 classify_by_type tok = return tok
 
 classify_by_next :: Token -> Token -> Punkt Token
-classify_by_next this (Token _ _ (Word next) _ _)
+classify_by_next this (Token _ _ (Word next _) _ _)
     | entity this == Ellipsis || abbrev this = do
         ortho_says <- decide_ortho next
         prob_says <- prob_starter next

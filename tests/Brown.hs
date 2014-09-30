@@ -23,8 +23,10 @@ list_corpora :: IO [FilePath]
 list_corpora = proc `fmap` readFile "./corpora/brown/cats.txt"
     where proc = map head . map words . lines
 
+read_corp :: FilePath -> IO Text
 read_corp codename = fmap Text.pack $ readFile ("./corpora/brown/" ++ codename)
 
+parse_corpus :: Text -> [Tagged]
 parse_corpus = map (to_tok . Text.breakOnEnd "/") . Text.words
     where
     to_tok (w, attr)
@@ -44,7 +46,8 @@ ctx_filter n match xs = map (\k -> subseg (k-n) (k+n) xs) matches
     subseg m n = take (n - m) . drop m
 
 to_punkt_toks :: [Tagged] -> [Token]
-to_punkt_toks = map to_punkt . group_enders . filter (not . is_misc)
+to_punkt_toks = filter (not . empty . entity) . to_punkt 0 . group_enders
+              . filter (not . is_misc)
     where
     group_enders [] = []
     group_enders (TWord w _ : Ender "." : toks) = Ender w' : group_enders toks
@@ -52,8 +55,14 @@ to_punkt_toks = map to_punkt . group_enders . filter (not . is_misc)
         w' = (if Text.last w == '.' then Text.init w else w) `Text.snoc` '.'
     group_enders (tok:toks) = tok : group_enders toks
 
-    to_punkt (Ender w) = Token 0 0 (Word w) True False
-    to_punkt (TWord w _) = Token 0 0 (Word w) False False
+    to_punkt n [] = []
+    to_punkt n (Ender w : xs) = Token n 0 (pword w) True False : to_punkt (n+1) xs
+    to_punkt n (TWord w _ : xs) = Token n 0 (pword w) False False : to_punkt (n+1) xs
+
+    pword w = Word (if p then Text.init w else w) p where p = Text.last w == '.'
+
+    empty (Word "" _) = True
+    empty _ = False
 
 data PunktError
     = FalseNegative Token
@@ -90,9 +99,8 @@ bench reftoks algo = zipWith judge reftoks (algo toks)
 control :: [Token] -> [Token]
 control = map control'
     where
-    control' tok@(Token {entity=(Word w)})
-        | Text.last w == '.' || Text.head w `elem` ":;?!" =
-            tok { sentend = True }
+    control' tok@(Token {entity=(Word w period_end)})
+        | period_end || Text.head w `elem` ":;?!" = tok { sentend = True }
     control' tok = tok { sentend = False }
 
 punkt :: [Token] -> [Token]
