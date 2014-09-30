@@ -26,6 +26,7 @@ data OrthoFreq = OrthoFreq {
 data PunktData = PunktData {
     type_count :: Map Text Int,  -- abbreviation counter
     ortho_count :: Map Text OrthoFreq,
+    collocations :: Map (Text, Text) Int,
     total_enders :: Int,
     total_toks :: Int
     }
@@ -79,6 +80,11 @@ ask_ortho :: Text -> Punkt OrthoFreq
 ask_ortho w_ = return . Map.findWithDefault (OrthoFreq 0 0 0 0 0) (norm w_)
                =<< fmap ortho_count Reader.ask
 
+ask_colloc :: Text -> Text -> Punkt Double
+ask_colloc w0_ w1_ =
+    return . fromIntegral . Map.findWithDefault 0 (norm w0_, norm w1_)
+    =<< collocations <$> Reader.ask
+
 -- c(w, ~.)
 freq :: Text -> Punkt Double
 freq w_ = ask_type_count >>= return . fromIntegral . Map.findWithDefault 0 w
@@ -129,6 +135,10 @@ prob_starter w_ = dunning_log <$> ask_total_enders <*> freq_type w_
                               <*> fafterend <*> ask_total_toks
     where fafterend = fromIntegral . freq_after_ender <$> ask_ortho w_
 
+prob_colloc :: Text -> Text -> Punkt Double
+prob_colloc w_ x_ = dunning_log <$> freq_type w_ <*> freq_type x_
+                                <*> ask_colloc w_ x_ <*> ask_total_toks
+
 build_type_count :: [Token] -> Map Text Int
 build_type_count = List.foldl' update initcount
     where
@@ -173,6 +183,13 @@ build_ortho_count toks = List.foldl' update Map.empty $
         afterender = sentend prev
     update ctr _ = ctr
 
+build_collocs :: [Token] -> Map (Text, Text) Int
+build_collocs toks = List.foldl' update Map.empty $ zip toks (drop 1 toks)
+    where
+    update ctr (Token {entity=(Word u _)}, Token {entity=(Word v _)}) =
+        Map.insertWith (+) (norm u, norm v) 1 ctr
+    update ctr _ = ctr
+
 to_tokens :: Text -> [Token]
 to_tokens corpus = catMaybes . map (either tok_word add_delim) $
                         re_split_pos word_seps corpus
@@ -196,12 +213,13 @@ to_tokens corpus = catMaybes . map (either tok_word add_delim) $
     len = Text.length
 
 build_punkt_data :: [Token] -> PunktData
-build_punkt_data toks = PunktData typecnt orthocnt nender (length toks)
+build_punkt_data toks = PunktData typecnt orthocnt collocs nender (length toks)
     where
     typecnt = build_type_count toks
-    temppunkt = PunktData typecnt Map.empty 0 (length toks)
+    temppunkt = PunktData typecnt Map.empty Map.empty 0 (length toks)
     refined = Reader.runReader (mapM classify_by_type toks) temppunkt
     orthocnt = build_ortho_count refined
+    collocs = build_collocs refined
     nender = length . filter (sentend . fst) $ zip (dummy : refined) refined
     dummy = Token 0 0 (Word " " False) True False
 
@@ -220,6 +238,26 @@ classify_by_next this (Token _ _ (Word next _) _ _)
             Nothing -> this { sentend = prob_says >= 30 }
             Just bool -> this { sentend = bool }
 classify_by_next this _ = return this
+
+classify_initials :: Token -> Token -> Punkt Token
+-- only search for possible initials followed by a word type
+classify_initials itok@(Token {entity=Word i True}) (Token {entity=Word next _})
+    | is_initial i = do
+        colo <- prob_colloc i next
+        startnext <- prob_starter next
+        orthonext <- decide_ortho next
+        case colo >= 7.88 && startnext < 30 of
+            -- TODO: simplify this series of checks into its own collocational
+            -- version of decide_ortho
+            False -> case orthonext of
+                Nothing -> do
+                    next_never_lower <- (== 0) . freq_lower <$> ask_ortho i
+                    return $ if next_never_lower then itok_is_abbrev else itok
+                Just False -> return itok_is_abbrev
+                Just True -> return itok  -- never reclassify as sentend
+            True -> return itok_is_abbrev
+    where itok_is_abbrev = itok { abbrev = True, sentend = False }
+classify_initials itok _ = return itok
 
 find_breaks :: Text -> [Int]
 find_breaks corpus = Reader.runReader find_breaks punkt
