@@ -49,8 +49,10 @@ type Punkt = Reader.Reader PunktData
 norm :: Text -> Text
 norm = Text.toLower
 
-is_initial :: Text -> Bool
-is_initial w = Text.length w == 1 && isAlpha (Text.head w)
+is_initial :: Token -> Bool
+is_initial (Token {entity=Word w True}) =
+    Text.length w == 1 && isAlpha (Text.head w)
+is_initial _ = False
 
 -- dunning log likelihood modified by kiss/strunk
 strunk_log :: Double -> Double -> Double -> Double -> Double
@@ -242,7 +244,7 @@ classify_by_next this _ = return this
 classify_initials :: Token -> Token -> Punkt Token
 -- only search for possible initials followed by a word type
 classify_initials itok@(Token {entity=Word i True}) (Token {entity=Word next _})
-    | is_initial i = do
+    | is_initial itok = do
         colo <- prob_colloc i next
         startnext <- prob_starter next
         orthonext <- decide_ortho next
