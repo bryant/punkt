@@ -252,7 +252,7 @@ classify_initials itok@(Token {entity=Word i True}) (Token {entity=Word next _})
             -- version of decide_ortho
             False -> case orthonext of
                 Nothing -> do
-                    next_never_lower <- (== 0) . freq_lower <$> ask_ortho i
+                    next_never_lower <- (== 0) . freq_lower <$> ask_ortho next
                     return $ if next_never_lower then itok_is_abbrev else itok
                 Just False -> return itok_is_abbrev
                 Just True -> return itok  -- never reclassify as sentend
