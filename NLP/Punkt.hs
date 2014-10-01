@@ -134,6 +134,13 @@ decide_ortho w_ = do
     return rv
     where lower = isLower $ Text.head w_
 
+-- special orthographic heuristic for post-possible-initial tokens.
+decide_initial_ortho :: Text -> Punkt (Maybe Bool)
+decide_initial_ortho w_ = do
+    neverlower <- (== 0) . freq_lower <$> ask_ortho w_
+    orthosays <- decide_ortho w_
+    return $ orthosays <|> if neverlower then Just False else Nothing
+
 -- probability that w_ is a frequent sentence starter
 prob_starter :: Text -> Punkt Double
 prob_starter w_ = dunning_log <$> ask_total_enders <*> freq_type w_
@@ -247,13 +254,6 @@ classify_by_next this (Token _ _ (Word next _) _ _)
             Nothing -> this { sentend = prob_says >= 30 }
             Just bool -> this { sentend = bool }
 classify_by_next this _ = return this
-
--- special orthographic heuristic for post-possible-initial tokens.
-decide_initial_ortho :: Text -> Punkt (Maybe Bool)
-decide_initial_ortho w_ = do
-    neverlower <- (== 0) . freq_lower <$> ask_ortho w_
-    orthosays <- decide_ortho w_
-    return $ orthosays <|> if neverlower then Just False else Nothing
 
 find_breaks :: Text -> [Int]
 find_breaks corpus = Reader.runReader find_breaks punkt
