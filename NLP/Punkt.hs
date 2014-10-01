@@ -122,17 +122,18 @@ prob_abbr w_ = compensate =<< strunk_log <$> freq_type w_ <*> freq "."
 
 -- decides if w is a sentence ender based on its capitalization
 decide_ortho :: Text -> Punkt (Maybe Bool)
-decide_ortho w_ = do
-    orthofreq <- ask_ortho w_
-    let occurs_upper = freq_upper orthofreq > 0
-    let occurs_lower = freq_lower orthofreq > 0
-    let never_internal_upper = freq_internal_upper orthofreq == 0
-    let never_first_lower = freq_first_lower orthofreq == 0
-    let rv | not lower && occurs_lower && never_internal_upper = Just True
-           | lower && (occurs_upper || never_first_lower) = Just False
-           | otherwise = Nothing
-    return rv
-    where lower = isLower $ Text.head w_
+decide_ortho w_ = ask_ortho w_ >>= return . decide' w_
+    where
+    decide' w_ wortho
+        | title && ever_lower && never_title_internal = Just True
+        | lower && (ever_title || never_lower_start) = Just False
+        | otherwise = Nothing
+        where
+        (lower, title) = (isLower $ Text.head w_, not lower)
+        ever_lower = freq_lower wortho > 0
+        never_title_internal = freq_internal_upper wortho == 0
+        ever_title = freq_upper wortho > 0
+        never_lower_start = freq_first_lower wortho == 0
 
 -- special orthographic heuristic for post-possible-initial tokens.
 decide_initial_ortho :: Text -> Punkt (Maybe Bool)
