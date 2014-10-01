@@ -232,7 +232,7 @@ classify_by_type tok = return tok
 
 classify_by_next :: Token -> Token -> Punkt Token
 classify_by_next this (Token _ _ (Word next _) _ _)
-    | entity this == Ellipsis || abbrev this = do
+    | not (is_initial this) && (entity this == Ellipsis || abbrev this) = do
         ortho_says <- decide_ortho next
         prob_says <- prob_starter next
         return $ case ortho_says of
