@@ -11,6 +11,7 @@ import qualified Data.Map as Map
 import qualified Data.List as List
 import Control.Applicative ((<$>), (<*>), (<|>))
 import qualified Control.Monad.Reader as Reader
+import Data.Monoid (Monoid(mempty, mappend))
 
 import NLP.Punkt.Match (re_split, re_split_pos, intrasep, word_seps)
 
@@ -22,6 +23,11 @@ data OrthoFreq = OrthoFreq {
     freq_after_ender :: Int
     }
     deriving Show
+
+instance Monoid OrthoFreq where
+    mempty = OrthoFreq 0 0 0 0 0
+    mappend (OrthoFreq a b c d e) (OrthoFreq a' b' c' d' e') =
+        OrthoFreq (a + a') (b + b') (c + c') (d + d') (e + e')
 
 data PunktData = PunktData {
     type_count :: Map Text Int,  -- abbreviation counter
@@ -45,6 +51,9 @@ data Token = Token {
     deriving Show
 
 type Punkt = Reader.Reader PunktData
+
+dummy :: Token
+dummy = Token 0 0 (Word " " False) True False
 
 norm :: Text -> Text
 norm = Text.toLower
@@ -82,7 +91,7 @@ ask_total_toks = Reader.liftM (fromIntegral . total_toks) Reader.ask
 ask_total_enders = Reader.liftM (fromIntegral . total_enders) Reader.ask
 
 ask_ortho :: Text -> Punkt OrthoFreq
-ask_ortho w_ = return . Map.findWithDefault (OrthoFreq 0 0 0 0 0) (norm w_)
+ask_ortho w_ = return . Map.findWithDefault mempty (norm w_)
                =<< fmap ortho_count Reader.ask
 
 ask_colloc :: Text -> Text -> Punkt Double
@@ -161,7 +170,7 @@ build_type_count = List.foldl' update initcount
         | per = Map.update (\n -> Just $ n + 1) "." ctr_
         | otherwise = ctr_
         where
-        ctr_ = Map.insertWith (\_ n -> n + 1) wnorm 1 ctr
+        ctr_ = Map.insertWith (+) wnorm 1 ctr
         wnorm = norm $ if per then w `Text.snoc` '.' else w
     update ctr _ = ctr
 
@@ -172,24 +181,22 @@ build_ortho_count :: [Token] -> Map Text OrthoFreq
 build_ortho_count toks = List.foldl' update Map.empty $
                             zip (dummy : toks) toks
     where
-    dummy = Token 0 0 (Word " " False) True False
     -- hack: add dummy to process first token
 
     update :: Map Text OrthoFreq -> (Token, Token) -> Map Text OrthoFreq
-    update ctr (prev, Token {entity=(Word w _)}) = Map.insert wnorm wortho ctr
+    update ctr (prev, Token {entity=(Word w _)}) =
+        Map.insertWith mappend wnorm wortho ctr
         where
-        upd (OrthoFreq a b c d e) a' b' c' d' e' =
-            OrthoFreq (a |+ a') (b |+ b') (c |+ c') (d |+ d') (e |+ e')
-            where int |+ bool = if bool then int + 1 else int
-
-        wortho = upd z lower (not lower) (first && lower)
-                       (internal && not lower) first
-        z = Map.findWithDefault (OrthoFreq 0 0 0 0 0) wnorm ctr
         wnorm = norm w
-        lower = isLower $ Text.head w
-        first = sentend prev && not (is_initial prev)
-        internal = not (sentend prev) && not (abbrev prev)
-                   && not (is_initial prev)
+        wortho = OrthoFreq lower (not lower) (first && lower)
+                       (internal && not lower) first
+
+        [lower, first, internal] = map btoi
+            [ isLower $ Text.head w
+            , sentend prev && not (is_initial prev)
+            , not (sentend prev) && not (abbrev prev) && not (is_initial prev)
+            ]
+        btoi t = if t then 1 else 0
     update ctr _ = ctr
 
 build_collocs :: [Token] -> Map (Text, Text) Int
@@ -229,7 +236,6 @@ build_punkt_data toks = PunktData typecnt orthocnt collocs nender totes
     orthocnt = build_ortho_count refined
     collocs = build_collocs refined
     nender = length . filter (sentend . fst) $ zip (dummy : refined) refined
-    dummy = Token 0 0 (Word " " False) True False
     totes = length $ filter is_word toks
 
 classify_by_type :: Token -> Punkt Token
