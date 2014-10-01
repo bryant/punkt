@@ -9,7 +9,7 @@ import Data.Map (Map)
 import Data.Char (isLower, isAlpha)
 import qualified Data.Map as Map
 import qualified Data.List as List
-import Control.Applicative ((<$>), (<*>))
+import Control.Applicative ((<$>), (<*>), (<|>))
 import qualified Control.Monad.Reader as Reader
 
 import NLP.Punkt.Match (re_split, re_split_pos, intrasep, word_seps)
@@ -240,23 +240,23 @@ classify_by_next this (Token _ _ (Word next _) _ _)
             Just bool -> this { sentend = bool }
 classify_by_next this _ = return this
 
+-- special orthographic heuristic for post-possible-initial tokens.
+decide_initial_ortho :: Text -> Punkt (Maybe Bool)
+decide_initial_ortho w_ = do
+    neverlower <- (== 0) . freq_lower <$> ask_ortho w_
+    orthosays <- decide_ortho w_
+    return $ orthosays <|> if neverlower then Just False else Nothing
+
 classify_initials :: Token -> Token -> Punkt Token
 -- only search for possible initials followed by a word type
 classify_initials itok@(Token {entity=Word i True}) (Token {entity=Word next _})
     | is_initial itok = do
         colo <- prob_colloc i next
         startnext <- prob_starter next
-        orthonext <- decide_ortho next
-        case colo >= 7.88 && startnext < 30 of
-            -- TODO: simplify this series of checks into its own collocational
-            -- version of decide_ortho
-            False -> case orthonext of
-                Nothing -> do
-                    next_never_lower <- (== 0) . freq_lower <$> ask_ortho next
-                    return $ if next_never_lower then itok_is_abbrev else itok
-                Just False -> return itok_is_abbrev
-                Just True -> return itok  -- never reclassify as sentend
-            True -> return itok_is_abbrev
+        orthonext <- decide_initial_ortho next
+        return $ if (colo >= 7.88 && startnext < 30) || orthonext == Just False
+            then itok_is_abbrev
+            else itok  -- never reclassify as sentend
     where itok_is_abbrev = itok { abbrev = True, sentend = False }
 classify_initials itok _ = return itok
 
