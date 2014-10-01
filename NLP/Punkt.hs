@@ -161,7 +161,7 @@ build_type_count = List.foldl' update initcount
         | per = Map.update (\n -> Just $ n + 1) "." ctr_
         | otherwise = ctr_
         where
-        ctr_ = Map.insertWith (\_ n -> n + 1) wnorm 1 ctr
+        ctr_ = Map.insertWith (+) wnorm 1 ctr
         wnorm = norm $ if per then w `Text.snoc` '.' else w
     update ctr _ = ctr
 
