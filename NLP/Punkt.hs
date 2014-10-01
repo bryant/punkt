@@ -5,9 +5,9 @@ module NLP.Punkt where
 import qualified Data.Text as Text
 import Data.Text (Text)
 import Data.Maybe (catMaybes)
-import Data.Map (Map)
+import Data.HashMap.Strict (HashMap)
 import Data.Char (isLower, isAlpha)
-import qualified Data.Map as Map
+import qualified Data.HashMap.Strict as Map
 import qualified Data.List as List
 import Control.Applicative ((<$>), (<*>), (<|>))
 import qualified Control.Monad.Reader as Reader
@@ -24,9 +24,9 @@ data OrthoFreq = OrthoFreq {
     deriving Show
 
 data PunktData = PunktData {
-    type_count :: Map Text Int,  -- abbreviation counter
-    ortho_count :: Map Text OrthoFreq,
-    collocations :: Map (Text, Text) Int,
+    type_count :: HashMap Text Int,  -- abbreviation counter
+    ortho_count :: HashMap Text OrthoFreq,
+    collocations :: HashMap (Text, Text) Int,
     total_enders :: Int,
     total_toks :: Int
     }
@@ -82,17 +82,17 @@ ask_total_toks = Reader.liftM (fromIntegral . total_toks) Reader.ask
 ask_total_enders = Reader.liftM (fromIntegral . total_enders) Reader.ask
 
 ask_ortho :: Text -> Punkt OrthoFreq
-ask_ortho w_ = return . Map.findWithDefault (OrthoFreq 0 0 0 0 0) (norm w_)
+ask_ortho w_ = return . Map.lookupDefault (OrthoFreq 0 0 0 0 0) (norm w_)
                =<< fmap ortho_count Reader.ask
 
 ask_colloc :: Text -> Text -> Punkt Double
 ask_colloc w0_ w1_ =
-    return . fromIntegral . Map.findWithDefault 0 (norm w0_, norm w1_)
+    return . fromIntegral . Map.lookupDefault 0 (norm w0_, norm w1_)
     =<< collocations <$> Reader.ask
 
 -- c(w, ~.)
 freq :: Text -> Punkt Double
-freq w_ = ask_type_count >>= return . fromIntegral . Map.findWithDefault 0 w
+freq w_ = ask_type_count >>= return . fromIntegral . Map.lookupDefault 0 w
     where w = norm w_
 
 -- c(w, .)
@@ -152,7 +152,7 @@ prob_colloc :: Text -> Text -> Punkt Double
 prob_colloc w_ x_ = dunning_log <$> freq_type w_ <*> freq_type x_
                                 <*> ask_colloc w_ x_ <*> ask_total_toks
 
-build_type_count :: [Token] -> Map Text Int
+build_type_count :: [Token] -> HashMap Text Int
 build_type_count = List.foldl' update initcount
     where
     initcount = Map.singleton "." 0
@@ -168,14 +168,14 @@ build_type_count = List.foldl' update initcount
     -- TODO: catch possible abbreviations wrapped in hyphenated and apostrophe
     -- forms in lexer
 
-build_ortho_count :: [Token] -> Map Text OrthoFreq
+build_ortho_count :: [Token] -> HashMap Text OrthoFreq
 build_ortho_count toks = List.foldl' update Map.empty $
                             zip (dummy : toks) toks
     where
     dummy = Token 0 0 (Word " " False) True False
     -- hack: add dummy to process first token
 
-    update :: Map Text OrthoFreq -> (Token, Token) -> Map Text OrthoFreq
+    update :: HashMap Text OrthoFreq -> (Token, Token) -> HashMap Text OrthoFreq
     update ctr (prev, Token {entity=(Word w _)}) = Map.insert wnorm wortho ctr
         where
         upd (OrthoFreq a b c d e) a' b' c' d' e' =
@@ -184,7 +184,7 @@ build_ortho_count toks = List.foldl' update Map.empty $
 
         wortho = upd z lower (not lower) (first && lower)
                        (internal && not lower) first
-        z = Map.findWithDefault (OrthoFreq 0 0 0 0 0) wnorm ctr
+        z = Map.lookupDefault (OrthoFreq 0 0 0 0 0) wnorm ctr
         wnorm = norm w
         lower = isLower $ Text.head w
         first = sentend prev && not (is_initial prev)
@@ -192,7 +192,7 @@ build_ortho_count toks = List.foldl' update Map.empty $
                    && not (is_initial prev)
     update ctr _ = ctr
 
-build_collocs :: [Token] -> Map (Text, Text) Int
+build_collocs :: [Token] -> HashMap (Text, Text) Int
 build_collocs toks = List.foldl' update Map.empty $ zip toks (drop 1 toks)
     where
     update ctr (Token {entity=(Word u _)}, Token {entity=(Word v _)}) =
