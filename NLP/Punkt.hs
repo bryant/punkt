@@ -232,7 +232,15 @@ classify_by_type tok = return tok
 
 classify_by_next :: Token -> Token -> Punkt Token
 classify_by_next this (Token _ _ (Word next _) _ _)
-    | not (is_initial this) && (entity this == Ellipsis || abbrev this) = do
+    | is_initial this = do
+        let Word thisinitial _ = entity this
+        colo <- prob_colloc thisinitial next
+        startnext <- prob_starter next
+        orthonext <- decide_initial_ortho next
+        return $ if (colo >= 7.88 && startnext < 30) || orthonext == Just False
+            then this { abbrev = True, sentend = False}
+            else this  -- never reclassify as sentend
+    | entity this == Ellipsis || abbrev this = do
         ortho_says <- decide_ortho next
         prob_says <- prob_starter next
         return $ case ortho_says of
@@ -246,19 +254,6 @@ decide_initial_ortho w_ = do
     neverlower <- (== 0) . freq_lower <$> ask_ortho w_
     orthosays <- decide_ortho w_
     return $ orthosays <|> if neverlower then Just False else Nothing
-
-classify_initials :: Token -> Token -> Punkt Token
--- only search for possible initials followed by a word type
-classify_initials itok@(Token {entity=Word i True}) (Token {entity=Word next _})
-    | is_initial itok = do
-        colo <- prob_colloc i next
-        startnext <- prob_starter next
-        orthonext <- decide_initial_ortho next
-        return $ if (colo >= 7.88 && startnext < 30) || orthonext == Just False
-            then itok_is_abbrev
-            else itok  -- never reclassify as sentend
-    where itok_is_abbrev = itok { abbrev = True, sentend = False }
-classify_initials itok _ = return itok
 
 find_breaks :: Text -> [Int]
 find_breaks corpus = Reader.runReader find_breaks punkt

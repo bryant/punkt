@@ -111,9 +111,7 @@ control = map control'
 punkt :: [Token] -> [Token]
 punkt toks = runPunkt (build_punkt_data toks') $ do
     abbrs <- mapM classify_by_type toks'
-    ases <- (++) <$> Reader.zipWithM classify_by_next abbrs (drop 1 abbrs)
-                 <*> return [last abbrs]
-    Reader.zipWithM classify_initials ases (drop 1 ases)
+    Reader.zipWithM classify_by_next abbrs (drop 1 abbrs)
     where toks' = map punktlexsim toks
 
 punktlexsim tok@(Token {entity=Word w _})
