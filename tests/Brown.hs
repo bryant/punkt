@@ -9,6 +9,7 @@ import NLP.Punkt.Match (re_compile)
 import NLP.Punkt
 import Text.Regex.TDFA (matchOnce)
 import qualified Control.Monad.Reader as Reader
+import Control.Applicative ((<$>), (<*>))
 
 data Tagged
     = TWord Text Text
@@ -79,22 +80,26 @@ false_pos _ = False
 false_neg (FalseNegative _) = True
 false_neg _ = False
 
-erate reftoks results = (flength fpos + flength fneg) / flength candidates
+errs reftoks results = (fpos, fneg, tpos)
     where
     flength = fromIntegral . length
-    fpos = filter false_pos results
-    fneg = filter false_neg results
-    candidates = filter sentend reftoks
+    fpos = flength $ filter false_pos results
+    fneg = flength $ filter false_neg results
+    tpos = flength $ filter fff results
+        where
+        fff (Awesome tok) = sentend tok
+        fff _ = False
+
+mask tok = tok { sentend = False }
 
 bench :: [Token] -> ([Token] -> [Token]) -> [PunktError]
 bench reftoks algo = zipWith judge reftoks (algo toks)
     where
-    toks = map mask reftoks where mask tok = tok { sentend = False }
-    judge ref actual = judge' ref actual actual
-    judge' ref actual
-        | sentend ref && not (sentend actual) = FalseNegative
-        | not (sentend ref) && sentend actual = FalsePositive
-        | otherwise = Awesome
+    toks = map mask reftoks
+    judge ref actual
+        | sentend ref && not (sentend actual) = FalseNegative actual
+        | not (sentend ref) && sentend actual = FalsePositive actual
+        | otherwise = Awesome actual
 
 control :: [Token] -> [Token]
 control = map control'
@@ -104,15 +109,24 @@ control = map control'
     control' tok = tok { sentend = False }
 
 punkt :: [Token] -> [Token]
-punkt toks = runPunkt (build_punkt_data toks) $ do
-        abbrs <- mapM classify_by_type toks
-        Reader.zipWithM classify_by_next abbrs (drop 1 abbrs)
+punkt toks = runPunkt (build_punkt_data toks') $ do
+    abbrs <- mapM classify_by_type toks'
+    ases <- (++) <$> Reader.zipWithM classify_by_next abbrs (drop 1 abbrs)
+                 <*> return [last abbrs]
+    Reader.zipWithM classify_initials ases (drop 1 ases)
+    where toks' = map punktlexsim toks
+
+punktlexsim tok@(Token {entity=Word w _})
+    | Text.head w `elem` ":;?!" = tok { entity = Punct w, sentend = True }
+    | otherwise = tok
 
 main = do
     corpi <- list_corpora >>= mapM (fmap Text.pack . readFile . ("./corpora/brown/"++))
     let ref = to_punkt_toks $ concatMap parse_corpus corpi
-    let punkterr = 100 * erate ref (bench ref punkt)
-    let ctrlerr = 100 * erate ref (bench ref control)
-    putStrLn $ "error rates: punkt = " ++ show punkterr ++ "%, control = "
-               ++ show ctrlerr ++ "%"
-
+    let (punktfp, punktfn, punkttp) = errs ref (bench ref punkt)
+    let (ctrlfp, ctrlfn, ctrltp) = errs ref (bench ref control)
+    putStrLn $ "error rates: punkt = " ++ show (punktfp, punktfn, punkttp) ++
+               " = " ++ show (erate punktfp punktfn punkttp) ++
+               "%, control = " ++ show (ctrlfp, ctrlfn, ctrltp) ++ " = " ++
+               show (erate ctrlfp ctrlfn ctrltp) ++ "%"
+    where erate fp fn tp = 100 * (fp + fn) / (fp + fn + tp)
