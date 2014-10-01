@@ -158,7 +158,7 @@ build_type_count = List.foldl' update initcount
     initcount = Map.singleton "." 0
 
     update ctr (Token {entity=(Word w per)})
-        | per = Map.update (\n -> Just $ n + 1) "." ctr_
+        | per = Map.adjust (+ 1) "." ctr_
         | otherwise = ctr_
         where
         ctr_ = Map.insertWith (+) wnorm 1 ctr
