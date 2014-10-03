@@ -11,6 +11,9 @@ import qualified Data.HashMap.Strict as Map
 import qualified Data.List as List
 import Control.Applicative ((<$>), (<*>), (<|>))
 import qualified Control.Monad.Reader as Reader
+import qualified Data.HashTable.ST.Cuckoo as HT
+import qualified Data.HashTable.Class as HT (toList)
+import Control.Monad.ST (runST)
 
 import NLP.Punkt.Match (re_split, re_split_pos, intrasep, word_seps)
 
@@ -199,6 +202,19 @@ build_collocs toks = List.foldl' update Map.empty $ zip toks (drop 1 toks)
         Map.insertWith (+) (norm u, norm v) 1 ctr
     update ctr _ = ctr
 
+build_collocs' :: [Token] -> HashMap (Text, Text) Int
+build_collocs' toks = Map.fromList $ runST $ do
+        colodict <- HT.newSized $ length tokpairs
+        mapM_ (update colodict) tokpairs
+        HT.toList colodict
+    where
+    tokpairs = zip toks $ drop 1 toks
+
+    update colodict (Token {entity=Word u _}, Token {entity=Word v _}) = do
+        val <- HT.lookup colodict (norm u, norm v)
+        HT.insert colodict (norm u, norm v) $ maybe (1 :: Int) (+1) val
+    update _ _ = return ()
+
 to_tokens :: Text -> [Token]
 to_tokens corpus = catMaybes . map (either tok_word add_delim) $
                         re_split_pos word_seps corpus
@@ -227,7 +243,7 @@ build_punkt_data toks = PunktData typecnt orthocnt collocs nender totes
     temppunkt = PunktData typecnt Map.empty Map.empty 0 (length toks)
     refined = Reader.runReader (mapM classify_by_type toks) temppunkt
     orthocnt = build_ortho_count refined
-    collocs = build_collocs refined
+    collocs = build_collocs' refined
     nender = length . filter (sentend . fst) $ zip (dummy : refined) refined
     dummy = Token 0 0 (Word " " False) True False
     totes = length $ filter is_word toks
