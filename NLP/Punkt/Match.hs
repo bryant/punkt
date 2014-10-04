@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PackageImports #-}
 
 module NLP.Punkt.Match (
     re_split_impl,
@@ -11,8 +12,9 @@ module NLP.Punkt.Match (
 
 import Data.Text (Text)
 import Data.Array ((!))
-import Text.Regex.TDFA.Text (compile)
-import Text.Regex.TDFA (Regex, matchOnceText, blankCompOpt, ExecOption(..))
+import "regex-tdfa-text" Text.Regex.TDFA.Text (compile)
+import "regex-tdfa" Text.Regex.TDFA (Regex, matchOnceText, blankCompOpt,
+                                     ExecOption(..))
 import Data.Maybe (maybe)
 import Data.Either (lefts)
 

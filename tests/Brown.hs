@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PackageImports #-}
 
 module Brown where
 
@@ -7,7 +8,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import NLP.Punkt.Match (re_compile)
 import NLP.Punkt
-import Text.Regex.TDFA (matchOnce)
+import "regex-tdfa" Text.Regex.TDFA (matchOnce)
 import qualified Control.Monad.Reader as Reader
 import Control.Applicative ((<$>), (<*>))
 
