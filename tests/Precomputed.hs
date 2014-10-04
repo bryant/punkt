@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module KnownCount where
+module Precomputed where
 
 import Data.Text as Text (Text, unpack, take, dropAround)
 import Test.Tasty (TestTree, testGroup)
@@ -21,8 +21,8 @@ test_cases =
       \Then he disappeared." :=?=> ["The quick brown T. rex swallowed the lazy, then fled from the F.B.I.", "Then he disappeared."]
     ]
 
-known_count_tests :: TestTree
-known_count_tests = testGroup "Split tests" $ map mkcase test_cases
+precomputed_tests :: TestTree
+precomputed_tests = testGroup "Precomputed splits" $ map mkcase test_cases
     where
     mkcase (Singleton s) = testCase (prefix s) $ split_sentences s @?= [s]
     mkcase (s :=?=> xs) = testCase (prefix s) $ split_sentences s @?= xs

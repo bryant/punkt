@@ -8,12 +8,12 @@ import Test.Tasty.QuickCheck (
     , testProperty
     )
 import NLP.Punkt (dunning_log)
-import KnownCount (known_count_tests)
+import Precomputed (precomputed_tests)
 import Brown (benchmark_brown)
 
 main = defaultMain $ testGroup "Tests"
     [ dunning_equiv
-    , known_count_tests
+    , precomputed_tests
     , benchmark_brown
     ]
 
