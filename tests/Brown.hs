@@ -11,6 +11,8 @@ import NLP.Punkt
 import "regex-tdfa" Text.Regex.TDFA (matchOnce)
 import qualified Control.Monad.Reader as Reader
 import Control.Applicative ((<$>), (<*>))
+import Test.Tasty (TestTree)
+import Test.Tasty.HUnit (testCase, assertFailure)
 
 data Tagged
     = TWord Text Text
@@ -119,13 +121,23 @@ punktlexsim tok@(Token {entity=Word w _})
     | Text.head w `elem` ":;?!" = tok { entity = Punct w, sentend = True }
     | otherwise = tok
 
-main = do
+benchmark_brown :: TestTree
+benchmark_brown = testCase "Brown corpus" $ do
     corpi <- list_corpora >>= mapM (fmap Text.pack . readFile . ("./corpora/brown/"++))
     let ref = to_punkt_toks $ concatMap parse_corpus corpi
     let (punktfp, punktfn, punkttp) = errs ref (bench ref punkt)
     let (ctrlfp, ctrlfn, ctrltp) = errs ref (bench ref control)
-    putStrLn $ "error rates: punkt = " ++ show (punktfp, punktfn, punkttp) ++
-               " = " ++ show (erate punktfp punktfn punkttp) ++
-               "%, control = " ++ show (ctrlfp, ctrlfn, ctrltp) ++ " = " ++
-               show (erate ctrlfp ctrlfn ctrltp) ++ "%"
+    let punkterr = erate punktfp punktfn punkttp
+    let ctrlerr = erate ctrlfp ctrlfn ctrltp
+
+
+    {-putStrLn $ "Error rates: Punkt = " ++ show (punktfp, punktfn, punkttp) ++
+               " = " ++ show punkterr ++ "%, Control = " ++
+               show (ctrlfp, ctrlfn, ctrltp) ++ " = " ++ show ctrlerr ++ "%"
+    -}
+
+    -- this number is completely arbitrary.
+    if punkterr > 1.20
+        then assertFailure $ show punkterr ++ " exceeds 1.20% threshold."
+        else return ()
     where erate fp fn tp = 100 * (fp + fn) / (fp + fn + tp)
