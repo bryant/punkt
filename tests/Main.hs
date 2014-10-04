@@ -1,9 +1,13 @@
-import Test.Tasty
-import Test.Tasty.QuickCheck
-import Test.Tasty.HUnit
-
-import NLP.Punkt
-
+import Test.Tasty (defaultMain, testGroup, TestTree)
+import Test.Tasty.QuickCheck (
+      forAll
+    , choose
+    , NonNegative(..)
+    , Positive(..)
+    , Arbitrary(..)
+    , testProperty
+    )
+import NLP.Punkt (dunning_log)
 import KnownCount (known_count_tests)
 
 main = defaultMain $ testGroup "Tests"
