@@ -225,7 +225,7 @@ build_punkt_data toks = PunktData typecnt orthocnt collocs nender totes
     where
     typecnt = build_type_count toks
     temppunkt = PunktData typecnt Map.empty Map.empty 0 (length toks)
-    refined = Reader.runReader (mapM classify_by_type toks) temppunkt
+    refined = runPunkt temppunkt $ mapM classify_by_type toks
     orthocnt = build_ortho_count refined
     collocs = build_collocs refined
     nender = length . filter (sentend . fst) $ zip (dummy : refined) refined
@@ -257,14 +257,11 @@ classify_by_next this (Token _ _ (Word next _) _ _)
 classify_by_next this _ = return this
 
 find_breaks :: Text -> [Int]
-find_breaks corpus = Reader.runReader find_breaks punkt
-    where
-    toks = to_tokens corpus
-    punkt = build_punkt_data toks
-    find_breaks = do
-        abbrd <- mapM classify_by_type toks
-        final <- Reader.zipWithM classify_by_next abbrd (drop 1 abbrd)
-        return $ map (\t -> offset t + toklen t) (filter sentend final)
+find_breaks corpus = runPunkt (build_punkt_data toks) $ do
+    abbrd <- mapM classify_by_type toks
+    final <- Reader.zipWithM classify_by_next abbrd (drop 1 abbrd)
+    return $ map (\t -> offset t + toklen t) (filter sentend final)
+    where toks = to_tokens corpus
 
 chop :: [Int] -> Text -> [Text]
 chop offsets text = zipWith (substr text) offsets (drop 1 offsets)
