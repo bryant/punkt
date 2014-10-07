@@ -4,9 +4,9 @@ module NLP.Punkt where
 
 import qualified Data.Text as Text
 import Data.Text (Text)
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, fromMaybe)
 import Data.HashMap.Strict (HashMap)
-import Data.Char (isLower, isAlpha)
+import Data.Char (isLower, isAlpha, isSpace)
 import qualified Data.HashMap.Strict as Map
 import qualified Data.List as List
 import Control.Applicative ((<$>), (<*>), (<|>))
@@ -256,20 +256,39 @@ classify_by_next this (Token _ _ (Word next _) _ _)
             Just bool -> this { sentend = bool }
 classify_by_next this _ = return this
 
-find_breaks :: Text -> [Int]
-find_breaks corpus = runPunkt (build_punkt_data toks) $ do
+classify_punkt :: Text -> [Token]
+classify_punkt corpus = runPunkt (build_punkt_data toks) $ do
     abbrd <- mapM classify_by_type toks
     final <- Reader.zipWithM classify_by_next abbrd (drop 1 abbrd)
-    return $ map (\t -> offset t + toklen t) (filter sentend final)
+    return $ final ++ [last toks]
     where toks = to_tokens corpus
 
-chop :: [Int] -> Text -> [Text]
-chop offsets text = zipWith (substr text) offsets (drop 1 offsets)
-    where substr text m n = Text.take (n - m) $ Text.drop m text
+find_breaks :: Text -> [(Int, Int)]
+find_breaks corpus = slices_from endpairs 0
+    where
+    pairs_of xs = zip xs $ drop 1 xs
+    endpairs = filter (sentend . fst) . pairs_of $ classify_punkt corpus
+
+    -- TODO: make this less convoluted
+    slices_from [] n = [(n, Text.length corpus)]
+    slices_from ((endtok, nexttok):pairs) n = (n, endpos + end) : slices_from pairs (endpos + n')
+        where
+        endpos = offset endtok + toklen endtok
+        (end, n') = fromMaybe (endpos, endpos + 1) . match_spaces $
+            substring corpus endpos (offset nexttok)
+
+substring :: Text -> Int -> Int -> Text
+substring c s e = Text.take (e - s) $ Text.drop s c
+
+match_spaces :: Text -> Maybe (Int, Int)
+match_spaces w = Text.findIndex isSpace w >>= \p ->
+    case Text.break notSpace (Text.drop p w) of
+        (spaces, _) -> Just (p, Text.length spaces + p)
+    where notSpace = not . isSpace
 
 split_sentences :: Text -> [Text]
-split_sentences corpus = chop (0 : breaks ++ [Text.length corpus - 1]) corpus
-    where breaks = find_breaks corpus
+split_sentences corpus = map (uncurry $ substring corpus) slices
+    where slices = find_breaks corpus
 
 runPunkt :: PunktData -> Punkt a -> a
 runPunkt = flip Reader.runReader
