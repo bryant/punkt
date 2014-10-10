@@ -5,7 +5,7 @@ Multilingual unsupervised sentence tokenization with Punkt.
 
 ## Usage
 
-Notice abbreviations are detected at run time without the aid of a pre-built
+Note that abbreviations are detected at run time without the aid of a pre-built
 abbreviation list:
 
 ```haskell
