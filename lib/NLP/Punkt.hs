@@ -295,5 +295,7 @@ split_sentences :: Text -> [Text]
 split_sentences corpus = map (uncurry $ substring corpus) slices
     where slices = find_breaks corpus
 
+-- | @runPunkt data computation@ runs @computation@ using @data@ collected from
+-- a corpus using 'build_punkt_data'.
 runPunkt :: PunktData -> Punkt a -> a
 runPunkt = flip Reader.runReader
