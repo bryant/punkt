@@ -63,7 +63,7 @@ is_initial _ = False
 is_word :: Token -> Bool
 is_word tok = case entity tok of { Word _ _ -> True; _ -> False; }
 
--- dunning log likelihood modified by kiss/strunk
+-- | Dunning log likelihood modified by Kiss/Strunk
 strunk_log :: Double -> Double -> Double -> Double -> Double
 strunk_log a b ab n = -2 * (null - alt)
     where
@@ -71,7 +71,7 @@ strunk_log a b ab n = -2 * (null - alt)
     alt = ab * log p2 + (a - ab) * log (1 - p2)
     (p1, p2) = (b / n, 0.99)
 
--- vanilla dunning log likelihood
+-- | Dunning's original log likelihood
 dunning_log :: Double -> Double -> Double -> Double -> Double
 dunning_log a b ab n | b == 0 || ab == 0 = 0
                      | otherwise = -2 * (s1 + s2 - s3 - s4)
@@ -101,24 +101,25 @@ ask_colloc w0_ w1_ =
     return . fromIntegral . Map.lookupDefault 0 (norm w0_, norm w1_)
     =<< collocations <$> Reader.ask
 
--- c(w, ~.)
+-- | Occurrences of a textual type, strictly ignoring trailing period.
+-- @c(w, ~.)@
 freq :: Text -> Punkt Double
 freq w_ = ask_type_count >>= return . fromIntegral . Map.lookupDefault 0 w
     where w = norm w_
 
--- c(w, .)
+-- | Occurrences of a textual type with trailing period. @c(w, .)@
 freq_snoc_dot :: Text -> Punkt Double
 freq_snoc_dot w_ = freq wdot where wdot = w_ `Text.snoc` '.'
 -- potential slowdown if ghc doesn't know that norm "." == "."
 
--- c(w) == c(w, .) + c(w, ~.)
+-- | @c(w) == c(w, .) + c(w, ~.)@
 freq_type :: Text -> Punkt Double
 freq_type w_ = (+) <$> freq w_ <*> freq_snoc_dot w_
 
 dlen :: Text -> Double
 dlen = fromIntegral . Text.length
 
--- probability that (w_ `snoc` '.') is an abbreviation.
+-- | Returns the log likelihood that (w_ `snoc` '.') is an abbreviation.
 prob_abbr :: Text -> Punkt Double
 prob_abbr w_ = compensate =<< strunk_log <$> freq_type w_ <*> freq "."
                                          <*> freq_snoc_dot w_ <*> ask_total_toks
@@ -131,7 +132,7 @@ prob_abbr w_ = compensate =<< strunk_log <$> freq_type w_ <*> freq "."
     f_len = 1 / exp (dlen $ Text.filter (/= '.') w_)
     f_periods = 1 + dlen (Text.filter (== '.') w_)
 
--- decides if w is a sentence ender based on its capitalization
+-- | Decides if w_ is a sentence ender based on its capitalization.
 decide_ortho :: Text -> Punkt (Maybe Bool)
 decide_ortho w_ = ask_ortho w_ >>= return . decide' w_
     where
@@ -146,14 +147,14 @@ decide_ortho w_ = ask_ortho w_ >>= return . decide' w_
         ever_title = freq_upper wortho > 0
         never_lower_start = freq_first_lower wortho == 0
 
--- special orthographic heuristic for post-possible-initial tokens.
+-- | Special orthographic heuristic for post-possible-initial tokens.
 decide_initial_ortho :: Text -> Punkt (Maybe Bool)
 decide_initial_ortho w_ = do
     neverlower <- (== 0) . freq_lower <$> ask_ortho w_
     orthosays <- decide_ortho w_
     return $ orthosays <|> if neverlower then Just False else Nothing
 
--- probability that w_ is a frequent sentence starter
+-- | Log likelihood that w_ is a frequent sentence starter
 prob_starter :: Text -> Punkt Double
 prob_starter w_ = dunning_log <$> ask_total_enders <*> freq_type w_
                               <*> fafterend <*> ask_total_toks
