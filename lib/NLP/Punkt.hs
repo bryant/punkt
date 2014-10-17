@@ -102,17 +102,18 @@ ask_colloc w0_ w1_ =
     =<< collocations <$> Reader.ask
 
 -- | Occurrences of a textual type, strictly ignoring trailing period.
--- @c(w, ~.)@
+-- @c(w, ~.)@. Case-insensitive.
 freq :: Text -> Punkt Double
 freq w_ = ask_type_count >>= return . fromIntegral . Map.lookupDefault 0 w
     where w = norm w_
 
--- | Occurrences of a textual type with trailing period. @c(w, .)@
+-- | Occurrences of a textual type with trailing period. @c(w, .)@.
+-- Case-insensitive.
 freq_snoc_dot :: Text -> Punkt Double
 freq_snoc_dot w_ = freq wdot where wdot = w_ `Text.snoc` '.'
 -- potential slowdown if ghc doesn't know that norm "." == "."
 
--- | @c(w) == c(w, .) + c(w, ~.)@
+-- | @c(w) == c(w, .) + c(w, ~.)@. Case-insensitive.
 freq_type :: Text -> Punkt Double
 freq_type w_ = (+) <$> freq w_ <*> freq_snoc_dot w_
 
@@ -120,6 +121,7 @@ dlen :: Text -> Double
 dlen = fromIntegral . Text.length
 
 -- | Returns the log likelihood that (w_ `snoc` '.') is an abbreviation.
+-- Case-insensitive.
 prob_abbr :: Text -> Punkt Double
 prob_abbr w_ = compensate =<< strunk_log <$> freq_type w_ <*> freq "."
                                          <*> freq_snoc_dot w_ <*> ask_total_toks
@@ -132,7 +134,8 @@ prob_abbr w_ = compensate =<< strunk_log <$> freq_type w_ <*> freq "."
     f_len = 1 / exp (dlen $ Text.filter (/= '.') w_)
     f_periods = 1 + dlen (Text.filter (== '.') w_)
 
--- | Decides if w_ is a sentence ender based on its capitalization.
+-- | Decides if @w@ is a sentence ender based on its capitalization.
+-- Case-insensitive.
 decide_ortho :: Text -> Punkt (Maybe Bool)
 decide_ortho w_ = ask_ortho w_ >>= return . decide' w_
     where
@@ -148,13 +151,14 @@ decide_ortho w_ = ask_ortho w_ >>= return . decide' w_
         never_lower_start = freq_first_lower wortho == 0
 
 -- | Special orthographic heuristic for post-possible-initial tokens.
+-- Case-insensitive.
 decide_initial_ortho :: Text -> Punkt (Maybe Bool)
 decide_initial_ortho w_ = do
     neverlower <- (== 0) . freq_lower <$> ask_ortho w_
     orthosays <- decide_ortho w_
     return $ orthosays <|> if neverlower then Just False else Nothing
 
--- | Log likelihood that w_ is a frequent sentence starter
+-- | Log likelihood that @w@ is a frequent sentence starter. Case-insensitive.
 prob_starter :: Text -> Punkt Double
 prob_starter w_ = dunning_log <$> ask_total_enders <*> freq_type w_
                               <*> fafterend <*> ask_total_toks
