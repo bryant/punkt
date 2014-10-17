@@ -6,15 +6,16 @@ license: MIT
 license-file:        LICENSE
 author:              bryant
 maintainer:          bryant@nfkb
-category: Natural Language Processing
+category: Natural Language Processing, Text
 build-type:          Simple
 cabal-version:       >=1.10
+homepage: https://github.com/bryant/punkt
 
 library
     exposed-modules: NLP.Punkt, NLP.Punkt.Match
 
     build-depends:
-        base,
+        base >= 4 && < 5,
         mtl,
         unordered-containers,
         array,
@@ -33,7 +34,7 @@ test-suite punkt-tests
     main-is: Main.hs
 
     build-depends:
-        base,
+        base >= 4 && < 5,
         mtl,
         text,
         punkt,
