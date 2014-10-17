@@ -29,9 +29,13 @@ data OrthoFreq = OrthoFreq {
     }
     deriving Show
 
+-- | Represents training data obtained from a corpus required by Punkt.
 data PunktData = PunktData {
-    type_count :: HashMap Text Int,  -- abbreviation counter
+    type_count :: HashMap Text Int,
+    -- ^ Occurrences of each textual type, case-insensitive. Used during Punkt's
+    -- type-based stage. Also contains occurrences of trailing periods.
     ortho_count :: HashMap Text OrthoFreq,
+    -- ^ Dictionary of orthographic data for each textual type.
     collocations :: HashMap (Text, Text) Int,
     total_enders :: Int,
     total_toks :: Int
@@ -164,10 +168,12 @@ prob_starter w_ = dunning_log <$> ask_total_enders <*> freq_type w_
                               <*> fafterend <*> ask_total_toks
     where fafterend = fromIntegral . freq_after_ender <$> ask_ortho w_
 
+-- | Computes the collocational likelihood of @w@ and @x@. Case-insensitive.
 prob_colloc :: Text -> Text -> Punkt Double
 prob_colloc w_ x_ = dunning_log <$> freq_type w_ <*> freq_type x_
                                 <*> ask_colloc w_ x_ <*> ask_total_toks
 
+-- | Builds a dictionary of textual type frequencies from a stream of tokens.
 build_type_count :: [Token] -> HashMap Text Int
 build_type_count = List.foldl' update initcount
     where
