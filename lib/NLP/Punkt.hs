@@ -14,12 +14,15 @@ import qualified Control.Monad.Reader as Reader
 
 import NLP.Punkt.Match (re_split_pos, word_seps)
 
+-- | Carries various orthographic statistics for a particular textual type.
 data OrthoFreq = OrthoFreq {
-    freq_lower :: Int,
-    freq_upper :: Int,
-    freq_first_lower :: Int,
-    freq_internal_upper :: Int,
-    freq_after_ender :: Int
+    freq_lower :: Int,  -- number of lowercase occurrences
+    freq_upper :: Int,  -- uppercase occurrences
+    freq_first_lower :: Int,  -- number of lowercase occurrences in the first
+                              -- position of a sentence
+    freq_internal_upper :: Int,  -- number of uppercase occurrences strictly
+                                 -- internal to a sentence
+    freq_after_ender :: Int  -- number of occurences in the first position
     }
     deriving Show
 
