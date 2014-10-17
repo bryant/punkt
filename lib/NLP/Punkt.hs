@@ -291,6 +291,8 @@ match_spaces w = Text.findIndex isSpace w >>= \p ->
         (spaces, _) -> Just (p, Text.length spaces + p)
     where notSpace = not . isSpace
 
+-- | Main export of the entire package. Splits a corpus into its constituent
+-- sentences.
 split_sentences :: Text -> [Text]
 split_sentences corpus = map (uncurry $ substring corpus) slices
     where slices = find_breaks corpus
