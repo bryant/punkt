@@ -12,7 +12,7 @@ import qualified Data.List as List
 import Control.Applicative ((<$>), (<*>), (<|>))
 import qualified Control.Monad.Reader as Reader
 
-import NLP.Punkt.Match (re_split, re_split_pos, intrasep, word_seps)
+import NLP.Punkt.Match (re_split_pos, word_seps)
 
 data OrthoFreq = OrthoFreq {
     freq_lower :: Int,
@@ -77,8 +77,13 @@ dunning_log a b ab n | b == 0 || ab == 0 = 0
     s4 = if b == ab then 0 else
         (b - ab) * log p2 + (n - a - b + ab) * log (1 - p2)
 
+ask_type_count :: Punkt (HashMap Text Int)
 ask_type_count = Reader.liftM type_count Reader.ask
+
+ask_total_toks :: Num a => Punkt a
 ask_total_toks = Reader.liftM (fromIntegral . total_toks) Reader.ask
+
+ask_total_enders :: Num a => Punkt a
 ask_total_enders = Reader.liftM (fromIntegral . total_enders) Reader.ask
 
 ask_ortho :: Text -> Punkt OrthoFreq
