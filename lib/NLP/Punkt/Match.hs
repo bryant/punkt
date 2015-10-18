@@ -21,6 +21,7 @@ re_split_impl :: Regex -> Text -> [Either Text Text]
 re_split_impl re str = filter not_blank $ chunk re str
     where
     not_blank xs = if xs == Left "" || xs == Right "" then False else True
+    chunk :: Regex -> Text -> [Either Text Text]
     chunk re str = maybe [Left str] link $ matchOnceText re str
     link (pre, match, post) = Left pre : Right (fst $ match ! 0) : chunk re post
 
