@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PackageImports #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module NLP.Punkt.Match (
     re_split_impl,
