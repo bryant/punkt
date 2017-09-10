@@ -229,16 +229,18 @@ to_tokens corpus = catMaybes . map (either tok_word add_delim) $
         | trim == "" = Nothing
         | otherwise = Just $ Token pos (len trim) (Word s period) False False
         where
-        trim = Text.dropAround (`elem` ",:()[]{}“”’\"\')") w
+        trim = Text.dropAround (`elem` symbols) w
+          where
+            symbols = ",:()[]{}“”’\"\')" :: String
         period = Text.last trim == '.'
         s = if period then Text.init trim else trim
 
     add_delim (delim, pos)
-        | d `elem` "—-" = Just $ Token pos (len delim) Dash False False
-        | d `elem` ".…" = Just $ Token pos (len delim) Ellipsis False False
-        | d `elem` ";!?" = Just $ Token pos (len delim) (Punct delim) True False
+        | d `elem` ("—-" :: String) = Just $ Token pos (len delim) Dash False False
+        | d `elem` (".…" :: String) = Just $ Token pos (len delim) Ellipsis False False
+        | d `elem` (";!?" :: String) = Just $ Token pos (len delim) (Punct delim) True False
         | otherwise = Nothing
-        where d = Text.head delim
+        where  d = Text.head delim
 
     len = Text.length
 
