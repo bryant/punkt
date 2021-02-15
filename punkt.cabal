@@ -20,8 +20,7 @@ library
         unordered-containers,
         array,
         text,
-        regex-tdfa,
-        regex-tdfa-text
+        regex-tdfa
 
     hs-source-dirs: lib
     default-language: Haskell2010
