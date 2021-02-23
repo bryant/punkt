@@ -1,5 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PackageImports #-}
+{-# LANGUAGE OverloadedStrings, PackageImports, FlexibleContexts #-}
 
 module NLP.Punkt.Match (
     re_split_impl,
@@ -12,7 +11,7 @@ module NLP.Punkt.Match (
 
 import Data.Text (Text)
 import Data.Array ((!))
-import "regex-tdfa-text" Text.Regex.TDFA.Text (compile)
+import qualified Text.Regex.TDFA.Text as TT
 import "regex-tdfa" Text.Regex.TDFA (Regex, matchOnceText, blankCompOpt,
                                      ExecOption(..))
 import Data.Either (lefts)
@@ -40,7 +39,7 @@ re_split :: Regex -> Text -> [Text]
 re_split re str = lefts $ re_split_impl re str
 
 re_compile :: Text -> Regex
-re_compile re = rv where Right rv = compile blankCompOpt (ExecOption False) re
+re_compile re = rv where Right rv = TT.compile blankCompOpt (ExecOption False) re
 
 word_seps, intrasep :: Regex
 word_seps = re_compile "([ \t\n]+|-{2,}|—|\\.{2,}|\\.( \\.)+|…|[!\\?;:]{1,})"
