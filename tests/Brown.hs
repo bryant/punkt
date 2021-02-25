@@ -108,7 +108,7 @@ control :: [Token] -> [Token]
 control = map control'
     where
     control' tok@(Token {entity=(Word w period_end)})
-        | period_end || Text.head w `elem` ":;?!" = tok { sentend = True }
+        | period_end || Text.head w `elem` (":;?!" :: [Char]) = tok { sentend = True }
     control' tok = tok { sentend = False }
 
 punkt :: [Token] -> [Token]
@@ -118,7 +118,7 @@ punkt toks = runPunkt (build_punkt_data toks') $ do
     where toks' = map punktlexsim toks
 
 punktlexsim tok@(Token {entity=Word w _})
-    | Text.head w `elem` ":;?!" = tok { entity = Punct w, sentend = True }
+    | Text.head w `elem` (":;?!" :: [Char]) = tok { entity = Punct w, sentend = True }
     | otherwise = tok
 
 benchmark_brown :: TestTree

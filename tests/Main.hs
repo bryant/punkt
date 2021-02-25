@@ -1,3 +1,4 @@
+
 import Test.Tasty (defaultMain, testGroup, TestTree)
 import Test.Tasty.QuickCheck (
       forAll
