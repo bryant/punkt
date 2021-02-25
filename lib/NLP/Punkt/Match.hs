@@ -19,8 +19,8 @@ import Data.Either (lefts)
 re_split_impl :: Regex -> Text -> [Either Text Text]
 re_split_impl re str = filter not_blank $ chunk re str
     where
-    not_blank xs = if xs == Left "" || xs == Right "" then False else True
-    chunk re str = maybe [Left str] link $ matchOnceText re str
+    not_blank xs = not $ xs == Left "" || xs == Right "" 
+    chunk r s = maybe [Left s] link $ matchOnceText r s
     link (pre, match, post) = Left pre : Right (fst $ match ! 0) : chunk re post
 
 re_split_pos :: Regex -> Text -> [Either (Text, Int) (Text, Int)]
@@ -28,8 +28,8 @@ re_split_pos re str = filter not_blank $ chunk re str 0
     where
     not_blank xs =
         case xs of { Left ("", _) -> False; Right ("", _) -> False; _ -> True; }
-    chunk re str relpos = case matchOnceText re str of
-        Nothing -> [Left (str, relpos)]
+    chunk r s relpos = case matchOnceText r s of
+        Nothing -> [Left (s, relpos)]
         Just (pre, match, post) ->
             let (mtext, (moffset, mlen)) = match ! 0
                 (mpos, relpos') = (relpos + moffset, mpos + mlen)

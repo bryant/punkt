@@ -9,7 +9,7 @@ import Data.HashMap.Strict (HashMap)
 import Data.Char (isLower, isAlpha, isSpace)
 import qualified Data.HashMap.Strict as Map
 import qualified Data.List as List
-import Control.Applicative ((<$>), (<*>), (<|>))
+import Control.Applicative ((<|>))
 import qualified Control.Monad.Reader as Reader
 
 import NLP.Punkt.Match (re_split_pos, word_seps)
@@ -69,9 +69,9 @@ is_word tok = case entity tok of { Word _ _ -> True; _ -> False; }
 
 -- | Dunning log likelihood modified by Kiss/Strunk
 strunk_log :: Double -> Double -> Double -> Double -> Double
-strunk_log a b ab n = -2 * (null - alt)
-    where
-    null = ab * log p1 + (a - ab) * log (1 - p1)
+strunk_log a b ab n = -2 * (nul - alt)
+  where
+    nul = ab * log p1 + (a - ab) * log (1 - p1)
     alt = ab * log p2 + (a - ab) * log (1 - p2)
     (p1, p2) = (b / n, 0.99)
 
@@ -142,17 +142,17 @@ prob_abbr w_ = compensate =<< strunk_log <$> freq_type w_ <*> freq "."
 -- Case-insensitive.
 decide_ortho :: Text -> Punkt (Maybe Bool)
 decide_ortho w_ = ask_ortho w_ >>= return . decide' w_
-    where
-    decide' w_ wortho
-        | title && ever_lower && never_title_internal = Just True
-        | lower && (ever_title || never_lower_start) = Just False
-        | otherwise = Nothing
-        where
-        (lower, title) = (isLower $ Text.head w_, not lower)
-        ever_lower = freq_lower wortho > 0
+  where
+    decide' w0 wortho
+      | title && ever_lower && never_title_internal = Just True
+      | lower && (ever_title || never_lower_start) = Just False
+      | otherwise = Nothing
+      where
+        (lower, title)       = (isLower $ Text.head w0, not lower)
+        ever_lower           = freq_lower wortho > 0
         never_title_internal = freq_internal_upper wortho == 0
-        ever_title = freq_upper wortho > 0
-        never_lower_start = freq_first_lower wortho == 0
+        ever_title           = freq_upper wortho > 0
+        never_lower_start    = freq_first_lower wortho == 0
 
 -- | Special orthographic heuristic for post-possible-initial tokens.
 -- Case-insensitive.
